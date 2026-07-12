@@ -5,3 +5,5 @@ CREATE TABLE IF NOT EXISTS jobs (
     description TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_jobs_company ON jobs (company);

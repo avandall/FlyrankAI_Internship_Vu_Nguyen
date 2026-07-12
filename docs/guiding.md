@@ -1,5 +1,6 @@
 1. Condition
 I'm on an internship project with flyrank AI. The project go through 10 weeks and every week have some tasks to be done. The tasks I will write it in phase 3. You follow the tasks and create the plan of what need to be done step by step so I can easily review quick. Create plan as simple, short, straight forward as possible, don't need details if I dont ask for.
+* **Important Port Configurations**: Always map containers to non-conflicting host ports in `docker-compose.yml` (e.g., map PostgreSQL host port to `5433` instead of the standard `5432` to avoid conflicts with active local projects like the WMS project).
 
 2. Tech stacks: FastAPI, Docker, Postgres, Python. Follow clean architecture for project structure (create project structure/skeleton first). Always create decoupled code and follow SOLID, DRY principles.
 
