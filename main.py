@@ -1,6 +1,11 @@
-def main():
-    print("Hello from flyrankai!")
+from fastapi import FastAPI
 
+app = FastAPI()
 
-if __name__ == "__main__":
-    main()
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to my FlyrankAI!"}
+
+@app.get("/status")
+def get_status():
+    return {"status": "healthy", "version": "1.0.0"}
