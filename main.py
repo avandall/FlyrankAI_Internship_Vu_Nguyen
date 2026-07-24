@@ -56,7 +56,17 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
 
+from fastapi.responses import JSONResponse
+from app.core.dependencies import AuthException
+
 app = FastAPI(title="FlyrankAI API", lifespan=lifespan)
+
+@app.exception_handler(AuthException)
+async def auth_exception_handler(request, exc: AuthException):
+    return JSONResponse(
+        status_code=401,
+        content={"error": exc.message}
+    )
 
 # Include routes
 app.include_router(jobs_router)
@@ -64,6 +74,7 @@ app.include_router(tasks_router)
 app.include_router(auth_router)
 app.include_router(public_router)
 app.include_router(protected_router)
+
 
 
 

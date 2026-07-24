@@ -1,8 +1,10 @@
-from fastapi import APIRouter, status
+from typing import Any
+from fastapi import APIRouter, Depends, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import json
 from supabase_auth.errors import AuthApiError
+from app.core.dependencies import get_current_user
 from app.core.supabase_client import get_supabase_client
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -84,3 +86,12 @@ def login(payload: LoginRequest):
             status_code=status.HTTP_401_UNAUTHORIZED,
             content={"error": "Invalid login credentials"}
         )
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(user: Any = Depends(get_current_user)):
+    try:
+        supabase = get_supabase_client()
+        supabase.auth.sign_out()
+    except Exception:
+        pass
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
