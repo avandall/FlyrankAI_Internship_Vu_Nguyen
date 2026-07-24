@@ -2,11 +2,16 @@ from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import json
+from supabase_auth.errors import AuthApiError
 from app.core.supabase_client import get_supabase_client
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 class SignUpRequest(BaseModel):
+    email: str | None = None
+    password: str | None = None
+
+class LoginRequest(BaseModel):
     email: str | None = None
     password: str | None = None
 
@@ -38,4 +43,44 @@ def signup(payload: SignUpRequest):
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"error": str(e)}
+        )
+
+@router.post("/login", status_code=status.HTTP_200_OK)
+def login(payload: LoginRequest):
+    # Validate missing/empty email or password
+    if not payload.email or not payload.email.strip() or not payload.password or not payload.password.strip():
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"error": "Email and password are required"}
+        )
+
+    try:
+        supabase = get_supabase_client()
+        res = supabase.auth.sign_in_with_password({
+            "email": payload.email.strip(),
+            "password": payload.password.strip()
+        })
+
+        if not res.session:
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"error": "Invalid login credentials"}
+            )
+
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "access_token": res.session.access_token,
+                "refresh_token": res.session.refresh_token
+            }
+        )
+    except AuthApiError:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"error": "Invalid login credentials"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"error": "Invalid login credentials"}
         )
