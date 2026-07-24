@@ -7,7 +7,8 @@ class Database:
 
     async def connect(self):
         if not self.pool:
-            self.pool = await asyncpg.create_pool(dsn=settings.DATABASE_URL)
+            self.pool = await asyncpg.create_pool(dsn=settings.DATABASE_URL, timeout=2.0, command_timeout=2.0)
+
 
     async def disconnect(self):
         if self.pool:

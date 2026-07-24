@@ -7,3 +7,9 @@ class Job(BaseModel):
     company: str
     description: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class Task(BaseModel):
+    id: int | None = None
+    title: str
+    done: bool = False
+
