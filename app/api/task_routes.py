@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
-from app.domain.entities import Task
+from app.domain.entities import Task, TaskCreate
 from app.repositories.sqlite_task import SQLiteTaskRepository
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
@@ -20,3 +20,13 @@ def get_task(task_id: int):
             content={"error": "Task not found"}
         )
     return task
+
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=Task)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=Task)
+def create_task(payload: TaskCreate):
+    if not payload.title or not payload.title.strip():
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"error": "Title is required"}
+        )
+    return task_repository.create(payload.title.strip())

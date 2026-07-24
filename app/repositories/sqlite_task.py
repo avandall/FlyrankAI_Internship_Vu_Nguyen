@@ -9,10 +9,13 @@ class SQLiteTaskRepository:
         self.db_path = db_path
 
     @contextmanager
-    def _get_cursor(self) -> Generator[Any, None, None]:
-        """Context manager helper to provide a cursor and handle connection cleanup."""
+    def _get_cursor(self, commit: bool = False) -> Generator[Any, None, None]:
+        """Context manager helper to provide a cursor, manage transactions, and clean up connections."""
         with get_sqlite_conn(self.db_path) as conn:
-            yield conn.cursor()
+            cursor = conn.cursor()
+            yield cursor
+            if commit:
+                conn.commit()
 
     @staticmethod
     def _to_task(row: Any) -> Task:
@@ -33,3 +36,8 @@ class SQLiteTaskRepository:
             cursor.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
             row = cursor.fetchone()
             return self._to_task(row) if row else None
+
+    def create(self, title: str) -> Task:
+        with self._get_cursor(commit=True) as cursor:
+            cursor.execute("INSERT INTO tasks (title, done) VALUES (?, ?)", (title, 0))
+            return Task(id=cursor.lastrowid, title=title, done=False)

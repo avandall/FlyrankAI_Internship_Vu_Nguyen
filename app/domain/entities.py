@@ -13,3 +13,7 @@ class Task(BaseModel):
     title: str
     done: bool = False
 
+class TaskCreate(BaseModel):
+    title: str | None = None
+
+
