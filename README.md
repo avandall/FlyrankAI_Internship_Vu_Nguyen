@@ -44,6 +44,19 @@ uv run uvicorn main:app --port 8000
 
 ---
 
+## 🏗️ Architecture & Concepts
+
+### 🧪 Storage is Just an Implementation Detail
+All endpoint tests written for Assignment 1 pass identically without changing a single line of API contract or router code. Identical tests passing across storage migrations proves that storage is **just an implementation detail** isolated behind repository interfaces in Clean Architecture.
+
+### ⚡ Database Indexing (`idx_tasks_done`)
+An index on `tasks(done)` creates a fast search lookup structure that speeds up filtering queries (`SELECT * FROM tasks WHERE done = 1`) by avoiding full table scans.
+
+### 🛡️ Transaction Atomicity
+Multi-step database changes (such as seeding the 3 initial tasks) are wrapped in a single database transaction so that either all statements succeed or none do (all-or-nothing), preventing partial data corruption.
+
+---
+
 ## 🔍 Database Inspection & Direct SQL Experiment
 
 ### DB Browser Screenshot

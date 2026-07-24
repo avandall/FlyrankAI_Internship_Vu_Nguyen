@@ -25,6 +25,10 @@ def init_sqlite_db(db_path: Path = DEFAULT_DB_PATH):
             )
         """)
         
+        # Create index on done column to optimize filtering queries
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_done ON tasks(done);")
+
+        
         # Count rows first
         cursor.execute("SELECT COUNT(*) FROM tasks")
         count = cursor.fetchone()[0]
