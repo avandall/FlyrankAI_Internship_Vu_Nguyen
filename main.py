@@ -5,6 +5,7 @@ from fastapi import FastAPI
 import uvicorn
 
 from app.api.auth_routes import router as auth_router
+from app.api.gate_routes import public_router, protected_router
 from app.api.routes import router as jobs_router
 from app.api.task_routes import router as tasks_router
 from app.core.database import db
@@ -61,6 +62,9 @@ app = FastAPI(title="FlyrankAI API", lifespan=lifespan)
 app.include_router(jobs_router)
 app.include_router(tasks_router)
 app.include_router(auth_router)
+app.include_router(public_router)
+app.include_router(protected_router)
+
 
 
 @app.get("/")
