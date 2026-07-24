@@ -11,4 +11,4 @@ wheels/
 
 # SQLite database (created automatically on startup)
 *.db
-
+*.env
