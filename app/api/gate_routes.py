@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Header, status
 from fastapi.responses import JSONResponse
+from app.core.supabase_client import get_supabase_client
 
 public_router = APIRouter(prefix="/public", tags=["Public"])
 protected_router = APIRouter(prefix="/protected", tags=["Protected"])
@@ -24,4 +25,32 @@ def protected_profile(authorization: str | None = Header(None)):
         )
     
     token = parts[1].strip()
-    return {"message": "Protected profile accessed", "token": token}
+
+    try:
+        supabase = get_supabase_client()
+        res = supabase.auth.get_user(token)
+        
+        if not res or not res.user:
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"error": "Invalid or expired token"}
+            )
+            
+        user = res.user
+        created_at = str(user.created_at) if hasattr(user, "created_at") and user.created_at else None
+        
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "created_at": created_at
+                }
+            }
+        )
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"error": "Invalid or expired token"}
+        )
