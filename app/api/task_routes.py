@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
+from fastapi.responses import JSONResponse
 from app.domain.entities import Task
 from app.repositories.sqlite_task import SQLiteTaskRepository
 
@@ -14,8 +15,8 @@ def get_tasks():
 def get_task(task_id: int):
     task = task_repository.find_by_id(task_id)
     if not task:
-        raise HTTPException(
+        return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Task with ID {task_id} not found."
+            content={"error": "Task not found"}
         )
     return task

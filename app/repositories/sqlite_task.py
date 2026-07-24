@@ -25,11 +25,11 @@ class SQLiteTaskRepository:
 
     def list_all(self) -> list[Task]:
         with self._get_cursor() as cursor:
-            cursor.execute("SELECT id, title, done FROM tasks ORDER BY id ASC")
+            cursor.execute("SELECT * FROM tasks")
             return [self._to_task(row) for row in cursor.fetchall()]
 
     def find_by_id(self, task_id: int) -> Task | None:
         with self._get_cursor() as cursor:
-            cursor.execute("SELECT id, title, done FROM tasks WHERE id = ?", (task_id,))
+            cursor.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
             row = cursor.fetchone()
             return self._to_task(row) if row else None
