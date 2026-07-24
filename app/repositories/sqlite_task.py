@@ -41,3 +41,18 @@ class SQLiteTaskRepository:
         with self._get_cursor(commit=True) as cursor:
             cursor.execute("INSERT INTO tasks (title, done) VALUES (?, ?)", (title, 0))
             return Task(id=cursor.lastrowid, title=title, done=False)
+
+    def update(self, task_id: int, title: str, done: bool) -> Task | None:
+        with self._get_cursor(commit=True) as cursor:
+            cursor.execute(
+                "UPDATE tasks SET title = ?, done = ? WHERE id = ?",
+                (title, 1 if done else 0, task_id)
+            )
+            if cursor.rowcount == 0:
+                return None
+            return Task(id=task_id, title=title, done=done)
+
+    def delete(self, task_id: int) -> bool:
+        with self._get_cursor(commit=True) as cursor:
+            cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+            return cursor.rowcount > 0
