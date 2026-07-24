@@ -9,6 +9,7 @@ wheels/
 # Virtual environments
 .venv
 
-# SQLite database (created automatically on startup)
-*.db
+# Environment variables & secrets
+.env
 *.env
+
