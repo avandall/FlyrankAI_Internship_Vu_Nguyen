@@ -19,9 +19,14 @@ This document defines the non-negotiable behavioral boundaries and operating ins
 ## 2. Context & Session Hygiene (*Tips 8, 9, 15*)
 1. **Never Compact Your Chat (*Tip 8*):**
    * Summarizing or compacting long conversation histories degrades agent reasoning. When context limits approach, commit progress and start a fresh session.
-2. **One Item, One Fresh Chat (*Tip 15*):**
-   * Pick **one** uncompleted checkbox item (`[ ]` -> `[/]`) from `docs/specs.md`. Complete it, run tests, mark `[x]`, commit, and finish your turn.
-3. **Spawn Helper Agents (*Tip 9*):**
+2. **One Project, One Session (*Tip 15*):**
+   * Work on exactly one capstone project per session, using its dedicated folder under `capstone/`.
+   * Pick **one** uncompleted checkbox item (`[ ]` -> `[/]`) from that project's `docs/specs.md`.
+   * Complete it, run tests, mark `[x]`, commit, and finish that project before moving on.
+3. **Sequential Delivery Across Projects:**
+   * After one project reaches a complete, verified state, move to the next project folder in the queue (for example `capstone/AI_image` -> `capstone/Embeddable_widget` -> `capstone/Multi_platform` -> `capstone/Usage_metering`).
+   * Do not mix tasks across multiple projects in one session.
+4. **Spawn Helper Agents (*Tip 9*):**
    * Use subagents for parallel research or codebase searches (`grep_search`, `list_dir`).
 
 ---

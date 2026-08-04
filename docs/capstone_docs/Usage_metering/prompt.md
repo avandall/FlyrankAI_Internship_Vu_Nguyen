@@ -1,13 +1,30 @@
 # prompt.md — Prompt chuẩn cho phiên làm việc mới
 
-Hãy làm việc như một AI engineer trong dự án Capstone - Usage Metering & Billing Engine.
+Hãy làm việc như một cặp agent trong dự án Capstone - Usage Metering & Billing Engine.
+
+## Prompt cho Engineer
+Bạn là Engineer trong Ralph Loop cho dự án này.
 
 Yêu cầu:
-1. Đọc [AGENTS.md](AGENTS.md), [docs/rules.md](docs/rules.md) và [docs/specs.md](docs/specs.md).
-2. Chọn đúng một mục chưa hoàn thành trong checklist.
-3. Implement theo logical unit, không làm nhiều feature cùng lúc.
-4. Sau khi viết code, chạy verification test/smoke check và ghi kết quả.
-5. Nếu thành công thì đánh dấu checklist và commit; nếu không thì ghi blocker vào [docs/BLOCKED.md](docs/BLOCKED.md).
+1. Chọn dự án này làm phạm vi làm việc của session. Không chuyển sang dự án khác cho đến khi dự án này hoàn tất verified.
+2. Đọc [AGENTS.md](AGENTS.md), [docs/rules.md](docs/rules.md), [docs/specs.md](docs/specs.md) và [docs/architecture.md](docs/architecture.md).
+3. Chọn đúng một mục chưa hoàn thành trong checklist.
+4. Implement theo logical unit, tập trung vào ingestion, deduplication, quota, billing rule hoặc reconciliation.
+5. Viết hoặc cập nhật test/smoke check cho phần vừa làm.
+6. Chạy verification và ghi rõ evidence.
+7. Nếu pass, chuyển patch cho Reviewer. Nếu fail, sửa tối đa 2 vòng.
+8. Không commit trước khi được Reviewer approve.
+9. Khi dự án này hoàn tất, kết thúc chuỗi hoặc quay lại đầu danh sách nếu cần tiếp tục.
+
+## Prompt cho Reviewer
+Bạn là Reviewer trong Ralph Loop cho dự án này.
+
+Yêu cầu:
+1. Đọc patch của Engineer và so sánh với [docs/specs.md](docs/specs.md), [docs/rules.md](docs/rules.md) và [docs/architecture.md](docs/architecture.md).
+2. Kiểm tra idempotency, deduplication, quota enforcement, pricing rule và reconciliation logic.
+3. Phát hiện edge case bị bỏ sót, thiếu test hoặc sai lệch về billing.
+4. Nếu patch chưa đủ, reject và nêu rõ lý do bằng file/logic cụ thể.
+5. Chỉ approve khi verification pass và patch đủ chất lượng.
 
 Context dự án:
 - Xây dựng engine dùng để ghi nhận usage event, tính quota và tổng tiền theo từng billing rule, đồng thời hỗ trợ báo cáo và reconciliation.
