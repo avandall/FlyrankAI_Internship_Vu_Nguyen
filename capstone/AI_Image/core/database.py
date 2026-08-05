@@ -1,19 +1,31 @@
-import sqlite3
-from pathlib import Path
-from datetime import datetime
+import asyncpg
+import logging
+from typing import Optional
+from capstone.AI_Image.core.config import DATABASE_URL
 
-DB_PATH = Path(__file__).parent / 'ai_image.db'
+logger = logging.getLogger(__name__)
 
-def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    return conn
+# We'll use a global connection pool
+pool: Optional[asyncpg.Pool] = None
 
+async def get_db_pool() -> asyncpg.Pool:
+    global pool
+    if pool is None:
+        db_url = "postgresql://postgres:postgres@localhost:5433/postgres"
+        pool = await asyncpg.create_pool(db_url)
+    return pool
 
-def init_db():
-    """Create tables on first startup."""
-    with get_db() as conn:
-        conn.executescript("""
+async def close_db_pool():
+    global pool
+    if pool:
+        await pool.close()
+        pool = None
+
+async def init_db():
+    """Create tables if not exists using asyncpg."""
+    p = await get_db_pool()
+    async with p.acquire() as conn:
+        await conn.execute("""
         CREATE TABLE IF NOT EXISTS images (
             image_id       TEXT PRIMARY KEY,
             filename       TEXT NOT NULL,
@@ -23,34 +35,32 @@ def init_db():
             height         INTEGER,
             subject        TEXT NOT NULL,
             category       TEXT NOT NULL,
-            attributes     TEXT,            -- JSON list
+            attributes     JSONB,
             caption        TEXT NOT NULL,
             confidence_score REAL NOT NULL,
             is_flagged     INTEGER DEFAULT 0,
-            embedding      TEXT,            -- JSON float list
-            created_at     TEXT DEFAULT (datetime('now'))
+            embedding      JSONB,
+            created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS ingest_jobs (
             job_id         TEXT PRIMARY KEY,
             image_id       TEXT,
-            status         TEXT DEFAULT 'queued',  -- queued|processing|done|failed
+            status         TEXT DEFAULT 'queued',
             retries        INTEGER DEFAULT 0,
             ai_cost_micro_usd INTEGER DEFAULT 0,
             error_msg      TEXT,
-            created_at     TEXT DEFAULT (datetime('now')),
-            updated_at     TEXT DEFAULT (datetime('now'))
+            created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS reviews (
             review_id      TEXT PRIMARY KEY,
             image_id       TEXT,
             post_id        TEXT,
-            approved       INTEGER NOT NULL,
+            approved       BOOLEAN NOT NULL,
             reject_reason  TEXT,
             reviewer       TEXT DEFAULT 'human_editor',
-            created_at     TEXT DEFAULT (datetime('now'))
+            created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """)
-        conn.commit()
-

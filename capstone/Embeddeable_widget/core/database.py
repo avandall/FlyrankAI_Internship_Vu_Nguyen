@@ -1,63 +1,77 @@
-import sqlite3
-from pathlib import Path
-from datetime import datetime
+import asyncpg
+import logging
+from typing import Optional
 
-DB_PATH = Path(__file__).parent / 'widget.db'
+logger = logging.getLogger(__name__)
 
-def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    return conn
+# Global connection pool
+pool: Optional[asyncpg.Pool] = None
 
+async def get_db_pool() -> asyncpg.Pool:
+    global pool
+    if pool is None:
+        db_url = "postgresql://postgres:postgres@localhost:5433/postgres"
+        pool = await asyncpg.create_pool(db_url)
+    return pool
 
-def init_db():
-    """Initialize tables."""
-    with get_db() as conn:
-        conn.executescript("""
+async def close_db_pool():
+    global pool
+    if pool:
+        await pool.close()
+        pool = None
+
+async def init_db():
+    p = await get_db_pool()
+    async with p.acquire() as conn:
+        await conn.execute("""
         CREATE TABLE IF NOT EXISTS tenants (
             tenant_id   TEXT PRIMARY KEY,
             name        TEXT NOT NULL,
-            api_key     TEXT NOT NULL UNIQUE,
-            email       TEXT,
-            created_at  TEXT DEFAULT (datetime('now'))
+            email       TEXT UNIQUE NOT NULL,
+            api_key     TEXT UNIQUE NOT NULL,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS widgets (
-            widget_id       TEXT PRIMARY KEY,
-            tenant_id       TEXT NOT NULL REFERENCES tenants(tenant_id),
-            name            TEXT NOT NULL,
-            form_type       TEXT DEFAULT 'contact',    -- contact|signup|popover
-            title           TEXT,
-            description     TEXT,
-            button_text     TEXT DEFAULT 'Submit',
-            allowed_domains TEXT DEFAULT '[]',         -- JSON list
-            rate_limit_per_min INTEGER DEFAULT 5,
-            webhook_url     TEXT,
-            primary_color   TEXT DEFAULT '#38BDF8',
-            is_active       INTEGER DEFAULT 1,
-            version         INTEGER DEFAULT 1,
-            created_at      TEXT DEFAULT (datetime('now')),
-            updated_at      TEXT DEFAULT (datetime('now'))
+            widget_id          TEXT PRIMARY KEY,
+            tenant_id          TEXT NOT NULL,
+            name               TEXT NOT NULL,
+            form_type          TEXT NOT NULL,
+            title              TEXT,
+            description        TEXT,
+            button_text        TEXT,
+            allowed_domains    JSONB,
+            rate_limit_per_min INTEGER DEFAULT 10,
+            webhook_url        TEXT,
+            is_active          BOOLEAN DEFAULT TRUE,
+            primary_color      TEXT,
+            created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id)
         );
 
         CREATE TABLE IF NOT EXISTS submissions (
-            submission_id   TEXT PRIMARY KEY,
-            widget_id       TEXT NOT NULL,
-            tenant_id       TEXT NOT NULL,
-            email           TEXT,
-            name            TEXT,
-            phone           TEXT,
-            message         TEXT,
-            custom_fields   TEXT DEFAULT '{}',         -- JSON
-            source_origin   TEXT,
-            source_ip       TEXT,
-            country         TEXT,
-            city            TEXT,
-            region          TEXT,
-            geo_provider    TEXT,
-            webhook_status  TEXT DEFAULT 'pending',    -- pending|delivered|failed
-            submitted_at    TEXT DEFAULT (datetime('now'))
+            submission_id  TEXT PRIMARY KEY,
+            widget_id      TEXT NOT NULL,
+            tenant_id      TEXT NOT NULL,
+            email          TEXT,
+            name           TEXT,
+            phone          TEXT,
+            message        TEXT,
+            custom_fields  JSONB,
+            source_origin  TEXT,
+            source_ip      TEXT,
+            country        TEXT,
+            city           TEXT,
+            region         TEXT,
+            geo_provider   TEXT,
+            webhook_status TEXT,
+            submitted_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (widget_id) REFERENCES widgets(widget_id),
+            FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id)
         );
-        """)
-        conn.commit()
 
+        -- Indexes for tenant isolation and queries
+        CREATE INDEX IF NOT EXISTS idx_widgets_tenant ON widgets(tenant_id);
+        CREATE INDEX IF NOT EXISTS idx_sub_tenant ON submissions(tenant_id);
+        CREATE INDEX IF NOT EXISTS idx_sub_widget ON submissions(widget_id);
+        """)

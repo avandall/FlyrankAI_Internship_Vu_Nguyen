@@ -3,7 +3,7 @@
 ## Checklist Completion Status
 
 ### ✅ AI Processing
-- **Vision model pipeline**: `engine.py:call_vision_ai()` — extracts structured JSON (subject, category, attributes, caption, confidence_score). Architecture designed for Gemini Flash API / Ollama llava integration (see `engine.py` inline docs).
+- **Vision model pipeline**: `engine.py:call_vision_ai()` — extracts structured JSON (subject, category, attributes, caption, confidence_score). Architecture designed for Groq API / Ollama llava integration (see `engine.py` inline docs).
 - **Low confidence flagging**: Images with `confidence_score < 0.70` are flagged (`is_flagged=1` in DB). Excluded from matching queries (`WHERE is_flagged=0`).
 - **Background job tracking**: `ingest_jobs` table tracks each job: `queued → processing → done/failed` with AI cost per call.
 - **Cost tracking**: `ai_cost_micro_usd` field per job. Aggregated via `GET /api/costs`.

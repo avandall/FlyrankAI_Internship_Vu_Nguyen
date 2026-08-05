@@ -1,7 +1,11 @@
+import os
+from dotenv import load_dotenv
 from typing import Dict, List
 
-CONFIDENCE_THRESHOLD = 0.70
-SIMILARITY_THRESHOLD = 0.60
+load_dotenv()
+
+CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.70"))
+SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.60"))
 
 # ─── Mismatch Guard taxonomy rules ──────────────────────────────────────────
 # Maps (target_subject_keyword → rejected_candidate_keywords)

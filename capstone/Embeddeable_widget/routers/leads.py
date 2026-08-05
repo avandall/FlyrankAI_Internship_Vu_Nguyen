@@ -7,9 +7,9 @@ submission_svc = SubmissionService()
 
 @router.get("/leads")
 async def get_leads(tenant: dict = Depends(require_tenant), limit: int = Query(50)):
-    leads = submission_svc.get_for_tenant(tenant["tenant_id"], limit)
+    leads = await submission_svc.get_for_tenant(tenant["tenant_id"], limit)
     return {"tenant_id": tenant["tenant_id"], "count": len(leads), "leads": leads}
 
 @router.get("/stats")
 async def get_stats(tenant: dict = Depends(require_tenant)):
-    return submission_svc.get_stats(tenant["tenant_id"])
+    return await submission_svc.get_stats(tenant["tenant_id"])

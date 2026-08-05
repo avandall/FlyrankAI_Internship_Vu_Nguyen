@@ -10,7 +10,7 @@ async def create_tenant(body: dict):
     name = body.get("name", "").strip()
     if not name:
         raise HTTPException(status_code=422, detail="name is required")
-    tenant = tenant_svc.create_tenant(name, body.get("email"))
+    tenant = await tenant_svc.create_tenant(name, body.get("email"))
     return {"tenant": tenant, "message": "Save your api_key — it won't be shown again"}
 
 @router.get("/me")

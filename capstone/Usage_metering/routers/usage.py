@@ -9,7 +9,7 @@ quota_svc = QuotaService()
 calc = CostCalculator()
 
 @router.post("/usage/record", summary="Record a billable usage event")
-def record_usage(body: dict):
+async def record_usage(body: dict):
     tenant_id = body.get("tenant_id", "")
     event_type = body.get("event_type", "api_call")
     quantity = body.get("quantity", 1)
@@ -24,7 +24,7 @@ def record_usage(body: dict):
         raise HTTPException(status_code=422, detail=f"token_type must be one of: {list(TOKEN_PRICE_CONFIG)}")
 
     try:
-        event = quota_svc.check_and_consume(
+        event = await quota_svc.check_and_consume(
             tenant_id, event_type, quantity, idempotency_key,
             token_type=token_type,
             metadata=body.get("metadata"),
@@ -42,16 +42,16 @@ def record_usage(body: dict):
         raise HTTPException(status_code=404, detail=str(e))
 
 @router.get("/usage/{tenant_id}", summary="Get current usage and quota status")
-def get_usage(tenant_id: str):
+async def get_usage(tenant_id: str):
     try:
-        return quota_svc.get_usage_summary(tenant_id)
+        return await quota_svc.get_usage_summary(tenant_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 @router.get("/invoice/{tenant_id}", summary="Get monthly invoice preview")
-def get_invoice(tenant_id: str):
+async def get_invoice(tenant_id: str):
     try:
-        return calc.monthly_invoice(tenant_id)
+        return await calc.monthly_invoice(tenant_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

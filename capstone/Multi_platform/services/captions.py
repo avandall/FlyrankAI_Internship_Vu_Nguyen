@@ -5,7 +5,7 @@ class CaptionGenerator:
     Assembles captions from reusable Prompt Fragments:
     SharedBrandVoice + PlatformRules + ContentSummary
     
-    In production: pass fragments to Gemini Flash API for generation.
+    In production: pass fragments to Groq API (e.g. llama-3.3-70b-versatile) for generation.
     Demo: applies rules deterministically to demonstrate the architecture.
     """
 

@@ -1,6 +1,6 @@
 from typing import Dict
 from capstone.Usage_metering.core.config import TOKEN_PRICE_CONFIG
-from capstone.Usage_metering.core.database import get_db
+from capstone.Usage_metering.core.database import get_db_pool
 
 class CostCalculator:
     """
@@ -24,19 +24,22 @@ class CostCalculator:
         remaining_cents = cents % 100
         return f"${dollars}.{remaining_cents:02d}"
 
-    def monthly_invoice(self, tenant_id: str) -> Dict:
+    async def monthly_invoice(self, tenant_id: str) -> Dict:
         """Aggregate total cost for current billing period."""
-        with get_db() as conn:
-            rows = conn.execute("""
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("""
                 SELECT event_type, token_type, SUM(quantity) as total_qty,
                        SUM(cost_micro_cents) as total_cost
-                FROM usage_events WHERE tenant_id=?
+                FROM usage_events WHERE tenant_id=$1
                 GROUP BY event_type, token_type
-            """, (tenant_id,)).fetchall()
-            total = conn.execute(
-                "SELECT SUM(cost_micro_cents) as total FROM usage_events WHERE tenant_id=?",
-                (tenant_id,)
-            ).fetchone()["total"] or 0
+            """, tenant_id)
+            
+            total_row = await conn.fetchrow(
+                "SELECT SUM(cost_micro_cents) as total FROM usage_events WHERE tenant_id=$1",
+                tenant_id
+            )
+            total = total_row["total"] or 0 if total_row else 0
 
         breakdown = [dict(r) for r in rows]
         return {

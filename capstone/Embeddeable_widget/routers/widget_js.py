@@ -10,7 +10,7 @@ async def serve_widget_js(
     id: str = Query(..., description="Widget ID"),
     v: int = Query(1, description="Widget version for cache-busting"),
 ):
-    widget = widget_svc.get_widget(id)
+    widget = await widget_svc.get_widget(id)
     if not widget:
         raise HTTPException(status_code=404, detail=f"Widget {id} not found")
 

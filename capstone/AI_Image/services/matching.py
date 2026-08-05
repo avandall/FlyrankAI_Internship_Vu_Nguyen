@@ -1,22 +1,21 @@
 import json
 from typing import Optional, Dict, Any
 
-from capstone.AI_Image.core.database import get_db
+from capstone.AI_Image.core.database import get_db_pool
 from capstone.AI_Image.utils import compute_embedding, cosine_similarity
 from capstone.AI_Image.services.mismatch_guard import MismatchGuard
 
 class ContentMatchingEngine:
     """
     Matches blog post to best image using:
-    1. Semantic vector embedding similarity (cosine distance)
+    1. Semantic vector embedding similarity (cosine distance calculated in python)
     2. Mismatch Guard safety checks
-    Returns ranked candidates with full audit trail.
     """
 
     def __init__(self):
         self.guard = MismatchGuard()
 
-    def match_post(
+    async def match_post(
         self,
         post_id: str,
         title: str,
@@ -25,12 +24,13 @@ class ContentMatchingEngine:
         target_category: Optional[str] = None,
     ) -> Dict[str, Any]:
         # Generate embedding for post content
-        post_embed = compute_embedding(f"{title} {text}")
+        post_embed = await compute_embedding(f"{title} {text}")
         
-        with get_db() as conn:
-            rows = conn.execute(
-                "SELECT * FROM images WHERE is_flagged=0"
-            ).fetchall()
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            # Fetch all non-flagged images. Since we don't have pgvector, we fetch embeddings and compute locally.
+            # In a massive DB we'd use pgvector, but PDF states "in-DB arrays fine at this scale".
+            rows = await conn.fetch("SELECT * FROM images WHERE is_flagged=0")
         
         if not rows:
             return {
@@ -47,7 +47,12 @@ class ContentMatchingEngine:
             img = dict(row)
             if not img.get("embedding"):
                 continue
-            img_embed = json.loads(img["embedding"])
+            
+            # handle JSONB -> list
+            img_embed = img["embedding"]
+            if isinstance(img_embed, str):
+                img_embed = json.loads(img_embed)
+
             sim = cosine_similarity(post_embed, img_embed)
             candidates.append({
                 "image_id": img["image_id"],

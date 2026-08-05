@@ -1,4 +1,13 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+WEBHOOK_HMAC_SECRET = os.getenv("WEBHOOK_HMAC_SECRET", "whsec_multiplatform_secret_555")
+IDEMPOTENCY_TTL_SECONDS = int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "3600"))
+
 PLATFORM_SPECS = {
+
     "instagram": {
         "width": 1080, "height": 1080, "ratio": "1:1",
         "max_caption_chars": 2200,

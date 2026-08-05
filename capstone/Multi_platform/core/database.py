@@ -1,44 +1,62 @@
-import sqlite3
-from pathlib import Path
-from datetime import datetime
+import asyncpg
+import logging
+from typing import Optional
 
-DB_PATH = Path(__file__).parent / 'multi_platform.db'
+logger = logging.getLogger(__name__)
 
-def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    return conn
+# Global connection pool
+pool: Optional[asyncpg.Pool] = None
 
+async def get_db_pool() -> asyncpg.Pool:
+    global pool
+    if pool is None:
+        db_url = "postgresql://postgres:postgres@localhost:5433/postgres"
+        pool = await asyncpg.create_pool(db_url)
+    return pool
 
-def init_db():
-    with get_db() as conn:
-        conn.executescript("""
+async def close_db_pool():
+    global pool
+    if pool:
+        await pool.close()
+        pool = None
+
+async def init_db():
+    p = await get_db_pool()
+    async with p.acquire() as conn:
+        await conn.execute("""
         CREATE TABLE IF NOT EXISTS campaigns (
-            campaign_id     TEXT PRIMARY KEY,
-            title           TEXT NOT NULL,
-            content         TEXT NOT NULL,      -- original blog post
-            platforms       TEXT DEFAULT '[]',  -- JSON list
-            status          TEXT DEFAULT 'draft',
-            image_path      TEXT,
-            created_at      TEXT DEFAULT (datetime('now')),
-            updated_at      TEXT DEFAULT (datetime('now'))
+            campaign_id TEXT PRIMARY KEY,
+            title       TEXT,
+            content     TEXT,
+            platforms   JSONB,
+            status      TEXT,
+            image_path  TEXT,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS platform_posts (
-            post_id         TEXT PRIMARY KEY,
-            campaign_id     TEXT NOT NULL,
-            platform        TEXT NOT NULL,
-            idempotency_key TEXT NOT NULL UNIQUE,
-            status          TEXT DEFAULT 'queued',
-            caption         TEXT,
+            post_id            TEXT PRIMARY KEY,
+            campaign_id        TEXT,
+            platform           TEXT,
+            idempotency_key    TEXT UNIQUE,
+            status             TEXT,
+            caption            TEXT,
             image_variant_path TEXT,
-            image_width     INTEGER,
-            image_height    INTEGER,
-            external_post_id TEXT,
-            publish_attempts INTEGER DEFAULT 0,
-            last_error      TEXT,
-            published_at    TEXT,
-            created_at      TEXT DEFAULT (datetime('now'))
+            image_width        INTEGER,
+            image_height       INTEGER,
+            external_post_id   TEXT,
+            publish_attempts   INTEGER DEFAULT 0,
+            last_error         TEXT,
+            published_at       TIMESTAMP,
+            created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(campaign_id) REFERENCES campaigns(campaign_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS platform_tokens (
+            platform        TEXT PRIMARY KEY,
+            encrypted_token TEXT,
+            updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS webhook_events (
@@ -46,18 +64,9 @@ def init_db():
             post_id         TEXT,
             platform        TEXT,
             event_type      TEXT,
-            payload         TEXT,               -- JSON
-            signature_valid INTEGER,
-            processed       INTEGER DEFAULT 0,
-            received_at     TEXT DEFAULT (datetime('now'))
-        );
-
-        CREATE TABLE IF NOT EXISTS platform_tokens (
-            token_id        TEXT PRIMARY KEY,
-            platform        TEXT NOT NULL UNIQUE,
-            encrypted_token TEXT NOT NULL,
-            created_at      TEXT DEFAULT (datetime('now'))
+            payload         TEXT,
+            signature_valid BOOLEAN,
+            processed       BOOLEAN DEFAULT FALSE,
+            received_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """)
-        conn.commit()
-

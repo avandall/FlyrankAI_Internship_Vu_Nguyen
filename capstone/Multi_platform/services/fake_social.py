@@ -4,10 +4,9 @@ import json
 import hmac
 import hashlib
 import logging
-import threading
+import asyncio
+import httpx
 from typing import Dict, Optional, List
-
-from capstone.Multi_platform.core.database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +15,6 @@ class FakeSocialPlatformServer:
     In-process mock of the social platform API.
     Simulates: OAuth token validation, Rate-limit 429, Idempotency key, 
     signed webhooks, random errors.
-    
-    Per spec: "Tuyệt đối không gọi API thật hay dùng tài khoản thật"
     """
 
     WEBHOOK_SECRET = "fake_server_webhook_secret_hmac_key"
@@ -25,7 +22,7 @@ class FakeSocialPlatformServer:
     _rate_counters: Dict[str, List[float]] = {}
 
     @classmethod
-    def publish_post(cls, platform: str, token: str, caption: str,
+    async def publish_post(cls, platform: str, token: str, caption: str,
                      image_path: Optional[str], idempotency_key: str) -> Dict:
         now = time.time()
         key = f"rate:{platform}"
@@ -49,34 +46,35 @@ class FakeSocialPlatformServer:
             "post_id": post_id, "platform": platform, "caption": caption
         }
 
-        cls._schedule_webhook(post_id, platform, idempotency_key)
+        # Fire and forget webhook
+        asyncio.create_task(cls._schedule_webhook(post_id, platform, idempotency_key))
 
         return {"status": 201, "body": {"post_id": post_id}}
 
     @classmethod
-    def _schedule_webhook(cls, post_id: str, platform: str, idem_key: str):
-        def deliver():
-            time.sleep(1)
-            payload = json.dumps({
-                "event": "post.published",
-                "post_id": post_id,
-                "platform": platform,
-                "idempotency_key": idem_key,
-                "status": "published",
-            })
-            sig = hmac.new(
-                cls.WEBHOOK_SECRET.encode(), payload.encode(), hashlib.sha256
-            ).hexdigest()
-            with get_db() as conn:
-                conn.execute("""
-                    INSERT OR IGNORE INTO webhook_events
-                    (event_id, post_id, platform, event_type, payload, signature_valid)
-                    VALUES (?,?,?,?,?,1)
-                """, (f"wh_{uuid.uuid4().hex[:8]}", post_id, platform, "post.published", payload))
-                conn.commit()
+    async def _schedule_webhook(cls, post_id: str, platform: str, idem_key: str):
+        await asyncio.sleep(1)
+        payload = json.dumps({
+            "event": "post.published",
+            "post_id": post_id,
+            "platform": platform,
+            "idempotency_key": idem_key,
+            "status": "published",
+        })
+        sig = hmac.new(
+            cls.WEBHOOK_SECRET.encode(), payload.encode(), hashlib.sha256
+        ).hexdigest()
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    "http://localhost:8003/webhook/social-delivery",
+                    content=payload.encode(),
+                    headers={"X-Hub-Signature-256": sig, "Content-Type": "application/json"}
+                )
             logger.info(f"[FakeServer] Webhook delivered for post {post_id}")
-        t = threading.Thread(target=deliver, daemon=True)
-        t.start()
+        except Exception as e:
+            logger.error(f"[FakeServer] Failed to deliver webhook: {e}")
 
     @classmethod
     def verify_webhook_signature(cls, payload: str, signature: str) -> bool:

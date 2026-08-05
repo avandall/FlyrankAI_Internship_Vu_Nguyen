@@ -16,7 +16,7 @@ async def public_submit(request: Request, body: dict):
     source_origin = request.headers.get("Origin", "unknown")
 
     try:
-        result = submission_svc.submit(widget_id, body, source_ip, source_origin)
+        result = await submission_svc.submit(widget_id, body, source_ip, source_origin)
         return {"status": "success", "submission": result}
     except SpamDetectedError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -8,12 +8,12 @@ router = APIRouter(prefix="/api/campaigns", tags=["Campaigns"])
 campaign_svc = CampaignService()
 
 @router.get("", summary="List all campaigns")
-def list_campaigns():
-    return {"campaigns": campaign_svc.get_all_campaigns()}
+async def list_campaigns():
+    return {"campaigns": await campaign_svc.get_all_campaigns()}
 
 @router.get("/{campaign_id}", summary="Get campaign with post statuses")
-def get_campaign(campaign_id: str):
-    campaign = campaign_svc.get_campaign(campaign_id)
+async def get_campaign(campaign_id: str):
+    campaign = await campaign_svc.get_campaign(campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     return campaign
@@ -39,13 +39,13 @@ async def create_campaign(
     if image:
         image_bytes = await image.read()
 
-    result = campaign_svc.create_campaign(title, content, platform_list, image_bytes)
+    result = await campaign_svc.create_campaign(title, content, platform_list, image_bytes)
     return {"status": "created", "campaign": result}
 
 @router.post("/{campaign_id}/publish", summary="Publish campaign to all platforms")
-def publish_campaign(campaign_id: str):
+async def publish_campaign(campaign_id: str):
     try:
-        result = campaign_svc.publish_campaign(campaign_id)
+        result = await campaign_svc.publish_campaign(campaign_id)
         return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

@@ -1,9 +1,9 @@
-import time
+import asyncio
 import logging
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple
 
-from capstone.Multi_platform.core.database import get_db
+from capstone.Multi_platform.core.database import get_db_pool
 from capstone.Multi_platform.utils import encrypt_token, decrypt_token
 from capstone.Multi_platform.services.fake_social import FakeSocialPlatformServer
 
@@ -13,7 +13,7 @@ class SocialPublisher(ABC):
     platform: str
 
     @abstractmethod
-    def publish(self, caption: str, image_path: Optional[str],
+    async def publish(self, caption: str, image_path: Optional[str],
                 idempotency_key: str) -> Tuple[bool, str, Optional[str]]:
         pass
 
@@ -24,15 +24,15 @@ class InstagramPublisherAdapter(SocialPublisher):
     def __init__(self, encrypted_token: str):
         self._encrypted_token = encrypted_token
 
-    def publish(self, caption: str, image_path: Optional[str],
+    async def publish(self, caption: str, image_path: Optional[str],
                 idempotency_key: str) -> Tuple[bool, str, Optional[str]]:
         token = decrypt_token(self._encrypted_token)
-        return self._publish_with_retry(caption, image_path, idempotency_key, token)
+        return await self._publish_with_retry(caption, image_path, idempotency_key, token)
 
-    def _publish_with_retry(self, caption, image_path, idem_key, token,
+    async def _publish_with_retry(self, caption, image_path, idem_key, token,
                              max_retries=3, backoff=1.0) -> Tuple[bool, str, Optional[str]]:
         for attempt in range(max_retries):
-            result = FakeSocialPlatformServer.publish_post(
+            result = await FakeSocialPlatformServer.publish_post(
                 self.platform, token, caption, image_path, idem_key
             )
             status = result["status"]
@@ -42,11 +42,11 @@ class InstagramPublisherAdapter(SocialPublisher):
             elif status == 429:
                 retry_after = int(result.get("headers", {}).get("Retry-After", backoff))
                 logger.warning(f"[{self.platform}] Rate limited. Waiting {retry_after}s")
-                time.sleep(min(retry_after, 5))
+                await asyncio.sleep(min(retry_after, 5))
                 backoff *= 2
             elif status == 500:
                 logger.warning(f"[{self.platform}] Server error, attempt {attempt+1}")
-                time.sleep(backoff)
+                await asyncio.sleep(backoff)
                 backoff *= 2
             else:
                 return False, f"Unexpected status {status}", None
@@ -59,15 +59,15 @@ class TwitterPublisherAdapter(SocialPublisher):
     def __init__(self, encrypted_token: str):
         self._encrypted_token = encrypted_token
 
-    def publish(self, caption: str, image_path: Optional[str],
+    async def publish(self, caption: str, image_path: Optional[str],
                 idempotency_key: str) -> Tuple[bool, str, Optional[str]]:
         token = decrypt_token(self._encrypted_token)
-        return self._publish_with_retry(caption, image_path, idempotency_key, token)
+        return await self._publish_with_retry(caption, image_path, idempotency_key, token)
 
-    def _publish_with_retry(self, caption, image_path, idem_key, token,
+    async def _publish_with_retry(self, caption, image_path, idem_key, token,
                              max_retries=3, backoff=1.0) -> Tuple[bool, str, Optional[str]]:
         for attempt in range(max_retries):
-            result = FakeSocialPlatformServer.publish_post(
+            result = await FakeSocialPlatformServer.publish_post(
                 self.platform, token, caption, image_path, idem_key
             )
             status = result["status"]
@@ -75,10 +75,10 @@ class TwitterPublisherAdapter(SocialPublisher):
                 return True, f"published (attempt {attempt+1})", result["body"]["post_id"]
             elif status == 429:
                 retry_after = int(result.get("headers", {}).get("Retry-After", backoff))
-                time.sleep(min(retry_after, 5))
+                await asyncio.sleep(min(retry_after, 5))
                 backoff *= 2
             elif status == 500:
-                time.sleep(backoff)
+                await asyncio.sleep(backoff)
                 backoff *= 2
             else:
                 return False, f"Unexpected status {status}", None
@@ -87,11 +87,13 @@ class TwitterPublisherAdapter(SocialPublisher):
 
 class PublisherAdapterFactory:
     @staticmethod
-    def get(platform: str) -> SocialPublisher:
-        with get_db() as conn:
-            row = conn.execute(
-                "SELECT encrypted_token FROM platform_tokens WHERE platform=?", (platform,)
-            ).fetchone()
+    async def get(platform: str) -> SocialPublisher:
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT encrypted_token FROM platform_tokens WHERE platform=$1", platform
+            )
+            
         encrypted = row["encrypted_token"] if row else encrypt_token(f"demo_token_{platform}")
 
         adapters = {

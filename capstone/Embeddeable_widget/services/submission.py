@@ -1,9 +1,10 @@
 import re
 import uuid
 import json
+import asyncio
 from typing import Dict, List
 
-from capstone.Embeddeable_widget.core.database import get_db
+from capstone.Embeddeable_widget.core.database import get_db_pool
 from capstone.Embeddeable_widget.core.exceptions import SpamDetectedError, RateLimitError, ValidationError
 from capstone.Embeddeable_widget.services.geoip import GeoIPService
 from capstone.Embeddeable_widget.services.abuse import AbuseProtection
@@ -18,25 +19,15 @@ class SubmissionService:
         self.webhook = WebhookService()
         self.widgets = WidgetService()
 
-    def submit(
+    async def submit(
         self,
         widget_id: str,
         data: Dict,
         source_ip: str,
         source_origin: str,
     ) -> Dict:
-        """
-        Full submission pipeline:
-        1. Load widget config
-        2. Honeypot check (spam)
-        3. Rate limit check per IP + widget
-        4. Validate required fields
-        5. Geo IP enrichment (fallback-safe)
-        6. Persist submission
-        7. Deliver webhook (safe side effect)
-        """
         # 1. Load widget
-        widget = self.widgets.get_widget(widget_id)
+        widget = await self.widgets.get_widget(widget_id)
         if not widget:
             raise ValueError(f"Widget not found: {widget_id}")
         if not widget.get("is_active", True):
@@ -48,7 +39,7 @@ class SubmissionService:
 
         # 3. Rate limit
         limit = widget.get("rate_limit_per_min", RATE_LIMIT_MAX_REQUESTS)
-        allowed, reason = self.abuse.check_rate_limit(source_ip, widget_id, limit)
+        allowed, reason = await self.abuse.check_rate_limit(source_ip, widget_id, limit)
         if not allowed:
             raise RateLimitError(reason)
 
@@ -58,18 +49,19 @@ class SubmissionService:
             raise ValidationError("Invalid email format")
 
         # 5. Geo IP (safe — won't raise on failure)
-        geo = self.geo.lookup(source_ip)
+        geo = await self.geo.lookup(source_ip)
 
         # 6. Persist
         submission_id = f"sub_{uuid.uuid4().hex[:12]}"
-        with get_db() as conn:
-            conn.execute("""
-                INSERT INTO submissions
-                (submission_id, widget_id, tenant_id, email, name, phone, message,
-                 custom_fields, source_origin, source_ip, country, city, region, geo_provider,
-                 webhook_status)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """, (
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO submissions (
+                    submission_id, widget_id, tenant_id, email, name, phone, message,
+                    custom_fields, source_origin, source_ip, country, city, region, geo_provider,
+                    webhook_status
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+            """,
                 submission_id, widget_id, widget["tenant_id"],
                 email,
                 data.get("name", "").strip(),
@@ -79,27 +71,25 @@ class SubmissionService:
                 source_origin, source_ip,
                 geo.get("country"), geo.get("city"), geo.get("region"), geo.get("provider"),
                 "pending",
-            ))
-            conn.commit()
+            )
 
-        # 7. Webhook (safe side effect)
-        webhook_status = "no_webhook"
-        if widget.get("webhook_url"):
-            ok, msg = self.webhook.deliver(widget["webhook_url"], {
-                "event": "new_submission",
-                "submission_id": submission_id,
-                "widget_id": widget_id,
-                "tenant_id": widget["tenant_id"],
-                "data": {"email": email, "name": data.get("name")},
-                "geo": geo,
-            })
-            webhook_status = "delivered" if ok else f"failed:{msg}"
-            with get_db() as conn:
-                conn.execute(
-                    "UPDATE submissions SET webhook_status=? WHERE submission_id=?",
-                    (webhook_status, submission_id)
-                )
-                conn.commit()
+        # 7. Webhook (safe side effect) - Fire and forget
+        async def send_webhook():
+            webhook_status = "no_webhook"
+            if widget.get("webhook_url"):
+                ok, msg = await self.webhook.deliver(widget["webhook_url"], {
+                    "event": "new_submission",
+                    "submission_id": submission_id,
+                    "widget_id": widget_id,
+                    "tenant_id": widget["tenant_id"],
+                    "data": {"email": email, "name": data.get("name")},
+                    "geo": geo,
+                })
+                webhook_status = "delivered" if ok else f"failed:{msg}"
+                async with pool.acquire() as c:
+                    await c.execute("UPDATE submissions SET webhook_status=$1 WHERE submission_id=$2", webhook_status, submission_id)
+
+        asyncio.create_task(send_webhook())
 
         return {
             "submission_id": submission_id,
@@ -108,30 +98,24 @@ class SubmissionService:
             "country": geo.get("country"),
             "city": geo.get("city"),
             "geo_provider": geo.get("provider"),
-            "webhook_status": webhook_status,
+            "webhook_status": "pending",
         }
 
-    def get_for_tenant(self, tenant_id: str, limit: int = 100) -> List[Dict]:
-        with get_db() as conn:
-            rows = conn.execute("""
-                SELECT * FROM submissions WHERE tenant_id=?
-                ORDER BY submitted_at DESC LIMIT ?
-            """, (tenant_id, limit)).fetchall()
+    async def get_for_tenant(self, tenant_id: str, limit: int = 100) -> List[Dict]:
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT * FROM submissions WHERE tenant_id=$1 ORDER BY submitted_at DESC LIMIT $2", tenant_id, limit)
         return [dict(r) for r in rows]
 
-    def get_stats(self, tenant_id: str) -> Dict:
-        with get_db() as conn:
-            total = conn.execute(
-                "SELECT COUNT(*) as c FROM submissions WHERE tenant_id=?", (tenant_id,)
-            ).fetchone()["c"]
-            by_widget = conn.execute("""
-                SELECT widget_id, COUNT(*) as count FROM submissions
-                WHERE tenant_id=? GROUP BY widget_id
-            """, (tenant_id,)).fetchall()
-            by_country = conn.execute("""
-                SELECT country, COUNT(*) as count FROM submissions
-                WHERE tenant_id=? AND country IS NOT NULL GROUP BY country
-            """, (tenant_id,)).fetchall()
+    async def get_stats(self, tenant_id: str) -> Dict:
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            total_row = await conn.fetchrow("SELECT COUNT(*) as c FROM submissions WHERE tenant_id=$1", tenant_id)
+            total = total_row["c"] if total_row else 0
+            
+            by_widget = await conn.fetch("SELECT widget_id, COUNT(*) as count FROM submissions WHERE tenant_id=$1 GROUP BY widget_id", tenant_id)
+            by_country = await conn.fetch("SELECT country, COUNT(*) as count FROM submissions WHERE tenant_id=$1 AND country IS NOT NULL GROUP BY country", tenant_id)
+            
         return {
             "total": total,
             "by_widget": {r["widget_id"]: r["count"] for r in by_widget},

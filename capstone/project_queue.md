@@ -10,10 +10,10 @@ File này là nguồn theo dõi chung cho toàn bộ chuỗi capstone projects. 
 
 ## Danh sách project
 - Trong capstone có 4 thư mục project tương ứng, mỗi thư mục đã có docs để đọc:
-- [x] AI_image — capstone/AI_Image — Status: completed ✅ — 22/22 tests pass, SQLite persistence, Vision AI pipeline, Mismatch Guard, Review API
-- [x] Embeddable_widget — capstone/Embeddeable_widget — Status: completed ✅ — 19/19 tests pass, real widget.js, Geo-IP, multi-tenant API key, SQLite
-- [x] Multi_platform — capstone/Multi_platform — Status: completed ✅ — 17/17 tests pass, Pillow image variants, Fake Social Server, AES-GCM tokens, HMAC webhooks, idempotency
-- [x] Usage_metering — capstone/Usage_metering — Status: completed ✅ — 41/41 tests pass, micro-cent integer arithmetic, Stripe webhooks, Quota 429/402, SQLiteency key deduplication, AI token integer cost calculation, quota 429 enforcement, Stripe HMAC webhooks
+- [x] AI_image — capstone/AI_Image — Status: refactored ✅ — Postgres + pgvector/JSONB, real Groq Vision AI, Ollama Embeddings, Redis Background jobs, Dark Mode UI
+- [x] Embeddable_widget — capstone/Embeddeable_widget — Status: refactored ✅ — Postgres, Async GeoIP, Redis Rate Limiting, Cross-origin Widget
+- [x] Multi_platform — capstone/Multi_platform — Status: refactored ✅ — Postgres, Async/Await, Redis Durable Scheduler, Async Webhooks
+- [x] Usage_metering — capstone/Usage_metering — Status: refactored ✅ — Postgres + Transactions, Integer Cost math, Idempotency, Stripe Async HMAC
 
 ## Cập nhật trạng thái
 Khi một project hoàn thành hoặc bị block, cập nhật checklist theo mẫu:

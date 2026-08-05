@@ -1,12 +1,10 @@
 import uuid
-from typing import Optional, Dict, Any, List
+from typing import List, Dict, Any, Optional
 
-from capstone.AI_Image.core.database import get_db
+from capstone.AI_Image.core.database import get_db_pool
 
 class ReviewService:
-    """Human review workflow: Approve/Reject AI suggestions with audit trail."""
-
-    def submit_review(
+    async def submit_review(
         self,
         image_id: str,
         post_id: str,
@@ -15,45 +13,42 @@ class ReviewService:
         reviewer: str = "human_editor",
     ) -> Dict[str, Any]:
         review_id = f"rev_{uuid.uuid4().hex[:8]}"
-        with get_db() as conn:
-            conn.execute("""
+        
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("""
                 INSERT INTO reviews (review_id, image_id, post_id, approved, reject_reason, reviewer)
-                VALUES (?,?,?,?,?,?)
-            """, (review_id, image_id, post_id, 1 if approved else 0, reject_reason, reviewer))
-            conn.commit()
+                VALUES ($1, $2, $3, $4, $5, $6)
+            """, review_id, image_id, post_id, approved, reject_reason, reviewer)
+        
         return {
+            "status": "success",
             "review_id": review_id,
-            "image_id": image_id,
-            "post_id": post_id,
             "approved": approved,
-            "reject_reason": reject_reason,
-            "reviewer": reviewer,
+            "image_id": image_id,
         }
 
-    def get_reviews(self, image_id: Optional[str] = None) -> List[Dict]:
-        with get_db() as conn:
+    async def get_reviews(self, image_id: Optional[str] = None) -> List[Dict]:
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
             if image_id:
-                rows = conn.execute(
-                    "SELECT * FROM reviews WHERE image_id=? ORDER BY created_at DESC", (image_id,)
-                ).fetchall()
+                rows = await conn.fetch("SELECT * FROM reviews WHERE image_id=$1 ORDER BY created_at DESC", image_id)
             else:
-                rows = conn.execute(
-                    "SELECT * FROM reviews ORDER BY created_at DESC LIMIT 50"
-                ).fetchall()
-        return [dict(r) for r in rows]
+                rows = await conn.fetch("SELECT * FROM reviews ORDER BY created_at DESC")
+                
+        return [dict(row) for row in rows]
 
-    def get_top1_precision(self) -> Dict[str, Any]:
-        """Calculate Top-1 Precision metric on all approved reviews."""
-        with get_db() as conn:
-            total = conn.execute("SELECT COUNT(*) as c FROM reviews").fetchone()["c"]
-            approved = conn.execute(
-                "SELECT COUNT(*) as c FROM reviews WHERE approved=1"
-            ).fetchone()["c"]
-        precision = round(approved / total, 4) if total else 0.0
+    async def get_top1_precision(self) -> Dict[str, Any]:
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT approved FROM reviews")
+            
+        if not rows:
+            return {"total_reviews": 0, "precision_percent": "0.0%"}
+            
+        approvals = sum(1 for r in rows if r["approved"])
+        precision = (approvals / len(rows)) * 100
         return {
-            "total_reviews": total,
-            "approved": approved,
-            "rejected": total - approved,
-            "top1_precision": precision,
-            "precision_pct": f"{precision * 100:.1f}%",
+            "total_reviews": len(rows),
+            "precision_percent": f"{precision:.1f}%",
         }

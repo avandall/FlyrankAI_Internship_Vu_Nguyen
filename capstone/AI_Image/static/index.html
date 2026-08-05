@@ -123,7 +123,7 @@
             <div class="step-icon">2</div>
             <div>
               <strong>Vision AI Analysis</strong>
-              <p class="text-muted" style="font-size:0.8rem">Calls Gemini Flash API (or Ollama llava) for semantic extraction: subject, tags, caption, confidence</p>
+              <p class="text-muted" style="font-size:0.8rem">Calls Groq API (llama-3.2-11b-vision-preview or Ollama llava) for semantic extraction: subject, tags, caption, confidence</p>
             </div>
           </div>
           <div class="step">
@@ -230,18 +230,21 @@ function showTab(name) {
 }
 
 async function matchPost() {
-  const body = {
-    post_id: 'post_' + Date.now(),
-    title: document.getElementById('post-title').value,
-    text: document.getElementById('post-text').value,
-    target_subject: document.getElementById('target-subject').value || undefined,
-    target_category: document.getElementById('target-category').value || undefined,
-  };
+  const post_id = 'post_' + Date.now();
+  const title = document.getElementById('post-title').value;
+  const text = document.getElementById('post-text').value;
+  const target_subject = document.getElementById('target-subject').value || undefined;
+  const target_category = document.getElementById('target-category').value || undefined;
+
   const el = document.getElementById('match-result');
   el.classList.remove('hidden');
   el.textContent = '⏳ Running semantic matching...';
   try {
-    const r = await fetch(API + '/api/match', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const query = new URLSearchParams({ title, text });
+    if (target_subject) query.append('target_subject', target_subject);
+    if (target_category) query.append('target_category', target_category);
+    
+    const r = await fetch(API + '/posts/' + post_id + '/images?' + query.toString(), {method:'GET'});
     const data = await r.json();
     const status = data.status;
     const icon = status === 'MATCHED' ? '✅' : status === 'REJECTED' ? '🚫' : '❓';
@@ -277,7 +280,11 @@ async function testScenario(name) {
   el.textContent = '⏳ Testing scenario: ' + name + '...';
   const s = SCENARIOS[name];
   try {
-    const r = await fetch(API + '/api/match', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({post_id:'test_'+name, ...s})});
+    const query = new URLSearchParams({ title: s.title, text: s.text });
+    if (s.target_subject) query.append('target_subject', s.target_subject);
+    if (s.target_category) query.append('target_category', s.target_category);
+    
+    const r = await fetch(API + '/posts/test_' + name + '/images?' + query.toString(), {method:'GET'});
     const data = await r.json();
     const status = data.status;
     const icon = status === 'MATCHED' ? '✅' : status === 'REJECTED' ? '🚫' : '❓';
@@ -310,21 +317,18 @@ async function submitUpload() {
   if (!selectedFile) return;
   const el = document.getElementById('upload-result');
   el.classList.remove('hidden');
-  el.textContent = '⏳ Running Vision AI analysis...';
+  el.textContent = '⏳ Queuing Vision AI analysis...';
   const fd = new FormData();
   fd.append('file', selectedFile);
   try {
     const r = await fetch(API + '/api/ingest/upload', {method:'POST', body: fd});
     const data = await r.json();
     if (!r.ok) { el.textContent = '❌ ' + (data.detail || 'Upload failed'); return; }
-    const img = data.image;
-    el.innerHTML = `✅ <strong>${img.filename}</strong> analyzed!<br/>
-      🏷️ Subject: <strong>${img.subject}</strong> | Category: ${img.category}<br/>
-      💬 ${img.caption}<br/>
-      📊 Confidence: ${(img.confidence_score*100).toFixed(0)}%
-      ${img.is_flagged ? ' <span class="badge badge-danger">⚠️ FLAGGED - Low confidence</span>' : ' <span class="badge badge-success">✅ Accepted</span>'}<br/>
-      💰 AI Cost: $${(img.ai_cost_micro_usd/1000000).toFixed(6)} | Job: ${img.job_id}`;
-    loadImageCount();
+    el.innerHTML = `✅ <strong>${data.filename}</strong> queued!<br/>
+      ⏳ Status: ${data.status}<br/>
+      🆔 Job ID: ${data.job_id}<br/>
+      <span class="text-muted" style="font-size:0.8rem">Image is being processed in the background by Redis Worker. Check Library in a few seconds.</span>`;
+    setTimeout(loadImageCount, 2000);
   } catch(e) { el.textContent = '❌ Error: ' + e.message; }
 }
 
@@ -363,7 +367,7 @@ async function submitReview() {
   const el = document.getElementById('review-result');
   el.classList.remove('hidden');
   try {
-    const r = await fetch(API + '/api/review', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const r = await fetch(API + '/images/review', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
     const data = await r.json();
     el.innerHTML = `✅ Review submitted! ID: ${data.review_id}<br/>Decision: ${data.approved ? '✅ Approved' : '❌ Rejected'}`;
     loadReviews();

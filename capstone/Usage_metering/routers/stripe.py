@@ -22,7 +22,7 @@ async def stripe_webhook(request: Request):
     return {"status": "ok", "message": message, "result": result}
 
 @router.post("/test", summary="Simulate Stripe webhook (for testing)")
-def simulate_stripe_webhook(body: dict):
+async def simulate_stripe_webhook(body: dict):
     event_type = body.get("event_type", "checkout.session.completed")
     tenant_id = body.get("tenant_id", "t_demo_free")
     forge = body.get("forge_signature", False)
@@ -64,7 +64,7 @@ def simulate_stripe_webhook(body: dict):
         sig = hmac.new(STRIPE_WEBHOOK_SECRET.encode(), signed.encode(), hashlib.sha256).hexdigest()
         stripe_signature = f"t={timestamp},v1={sig}"
 
-    success, message, result = stripe_handler.process(payload_str, stripe_signature)
+    success, message, result = await stripe_handler.process(payload_str, stripe_signature)
 
     if not success:
         raise HTTPException(status_code=400, detail=message)

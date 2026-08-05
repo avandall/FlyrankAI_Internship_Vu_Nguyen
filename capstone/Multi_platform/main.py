@@ -15,17 +15,32 @@ import logging
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+import logging
 
-from capstone.Multi_platform.core.database import init_db
 from capstone.Multi_platform.routers import campaigns, images, captions, webhooks, platforms, ui
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from contextlib import asynccontextmanager
+from capstone.Multi_platform.core.database import init_db, close_db_pool
+import asyncio
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    # Start Redis durable worker here
+    from capstone.Multi_platform.worker import start_worker
+    worker_task = asyncio.create_task(start_worker())
+    yield
+    worker_task.cancel()
+    await close_db_pool()
+
 app = FastAPI(
     title="Multi-Platform Social Campaign Publisher",
-    description="Capstone Project 3 — Pillow image variants, Fake Social Server, HMAC webhooks, Idempotent publishing",
+    description="Capstone Project 3 — PostgreSQL, Redis Queue, Pillow image variants, Fake Social Server, HMAC webhooks",
     version="2.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -34,9 +49,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Initialize
-init_db()
 
 # Static UI
 static_dir = os.path.join(os.path.dirname(__file__), "static")

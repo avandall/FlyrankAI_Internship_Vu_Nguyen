@@ -1,27 +1,50 @@
 """
 FastAPI app for AI Image Understanding & Content Matching Engine.
-Port 8001. Rebuilt per Capstone Spec with real file upload, persistent DB,
+Port 8001. Rebuilt per Capstone Spec with real file upload, persistent Postgres DB,
 Vision AI pipeline, semantic matching, and Review API.
 """
 
 import os
 import logging
+import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-from capstone.AI_Image.core.database import init_db
+from capstone.AI_Image.core.database import init_db, close_db_pool
 from capstone.AI_Image.services.ingestion import ImageIngestionService
 from capstone.AI_Image.core.config import SEED_IMAGES
+from capstone.AI_Image.worker import worker_loop
 from capstone.AI_Image.routers import ingest, images, jobs, matching, reviews, ui
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+ingestion_svc = ImageIngestionService()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize DB pool on startup
+    await init_db()
+    
+    # Seed demo images on startup
+    for seed in SEED_IMAGES:
+        await ingestion_svc.ingest_metadata(seed)
+        
+    # Start background worker for image processing
+    worker_task = asyncio.create_task(worker_loop())
+    
+    yield
+    # Close DB pool on shutdown
+    worker_task.cancel()
+    await close_db_pool()
+
 app = FastAPI(
     title="AI Image Understanding & Content Matching Engine",
     description="Capstone Project 1 — Real Vision AI Pipeline + Semantic Matching",
     version="2.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -31,14 +54,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ─── Initialize DB and services ──────────────────────────────────────────────
-init_db()
-ingestion_svc = ImageIngestionService()
-
-# Seed demo images on startup (idempotent - uses INSERT OR REPLACE)
-for seed in SEED_IMAGES:
-    ingestion_svc.ingest_metadata(seed)
 
 # Static UI
 static_dir = os.path.join(os.path.dirname(__file__), "static")

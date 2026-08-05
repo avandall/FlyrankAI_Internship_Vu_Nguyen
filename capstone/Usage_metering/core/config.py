@@ -1,7 +1,10 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # 1 micro-cent = $0.00000001. Prices are per-token in micro-cents.
-# Based on Gemini Flash pricing (representative AI model)
+# Based on Groq / LLM pricing (representative AI model)
 TOKEN_PRICE_CONFIG = {
     "input": 750,           # $0.0000075 per token = 750 micro-cents
     "cached_input": 375,    # 50% discount for cached input

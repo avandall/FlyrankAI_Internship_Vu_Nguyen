@@ -14,7 +14,7 @@ async def receive_webhook(request: Request):
     payload_str = raw_body.decode("utf-8")
     signature = request.headers.get("X-Hub-Signature-256", "")
 
-    valid, message = webhook_handler.receive(payload_str, signature)
+    valid, message = await webhook_handler.receive(payload_str, signature)
 
     if not valid:
         raise HTTPException(status_code=400, detail=message)
@@ -22,7 +22,7 @@ async def receive_webhook(request: Request):
     return {"status": "ok", "message": message}
 
 @router.post("/api/webhook/test", summary="Simulate Fake Server webhook delivery")
-def simulate_webhook(body: dict):
+async def simulate_webhook(body: dict):
     post_id = body.get("post_id", "test_post_id")
     platform = body.get("platform", "instagram")
     forge_signature = body.get("forge_signature", False)
@@ -43,7 +43,7 @@ def simulate_webhook(body: dict):
         ).hexdigest()
         signature = real_sig
 
-    valid, message = webhook_handler.receive(payload, signature)
+    valid, message = await webhook_handler.receive(payload, signature)
     return {
         "signature_valid": valid,
         "message": message,

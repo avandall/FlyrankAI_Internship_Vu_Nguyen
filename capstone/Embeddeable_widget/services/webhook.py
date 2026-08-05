@@ -1,20 +1,20 @@
-import requests
-from typing import Tuple, Dict
+import httpx
+import logging
+import json
+from typing import Tuple
+
+logger = logging.getLogger(__name__)
 
 class WebhookService:
-    def deliver(self, webhook_url: str, payload: Dict) -> Tuple[bool, str]:
+    async def deliver(self, url: str, payload: dict) -> Tuple[bool, str]:
         """
-        Delivers webhook. Returns (success, status_msg).
-        SAFE SIDE EFFECT: caller must proceed even if this returns False.
+        Deliver webhook asynchronously. Safe side effect that won't crash main thread.
         """
         try:
-            resp = requests.post(
-                webhook_url, json=payload,
-                timeout=5,
-                headers={"Content-Type": "application/json", "X-Widget-Event": "submission"}
-            )
-            if resp.status_code < 300:
-                return True, f"delivered ({resp.status_code})"
-            return False, f"http_{resp.status_code}"
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post(url, json=payload)
+                resp.raise_for_status()
+                return True, ""
         except Exception as e:
-            return False, f"error: {str(e)}"
+            logger.error(f"Webhook delivery failed to {url}: {e}")
+            return False, str(e)
