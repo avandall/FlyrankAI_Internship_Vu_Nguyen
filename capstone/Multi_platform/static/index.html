@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Social Campaign Publisher — FlyRank Capstone</title>
+  <meta name="description" content="Multi-Platform Social Campaign Publisher with image variants, caption AI, idempotent publishing"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+<div class="container">
+  <header class="header">
+    <div class="logo">
+      <div class="icon">🚀</div>
+      <div>
+        <h1 style="font-size:1.4rem;font-weight:700">Multi-Platform Campaign Publisher</h1>
+        <p class="subtitle">FlyRank Capstone · Pillow Image Variants · Platform Captions · Idempotent Publishing · HMAC Webhooks</p>
+      </div>
+    </div>
+    <div id="platforms-badge" class="badge badge-success">3 Platforms Active</div>
+  </header>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('campaign')">📋 Campaign Builder</button>
+    <button class="tab" onclick="showTab('captions')">✍️ Caption Preview</button>
+    <button class="tab" onclick="showTab('images')">🖼️ Image Variants</button>
+    <button class="tab" onclick="showTab('webhook')">🔗 Webhook Tester</button>
+    <button class="tab" onclick="showTab('status')">📊 Campaign Status</button>
+  </div>
+
+  <!-- TAB: CAMPAIGN BUILDER -->
+  <div id="tab-campaign" class="tab-panel active">
+    <div class="grid">
+      <div class="card">
+        <h3>📋 Create New Campaign</h3>
+        <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">
+          Enter a blog post and select platforms. The system will generate 
+          platform-specific image variants and tailored captions automatically.
+        </p>
+        <div class="form-group">
+          <label>Campaign / Blog Title</label>
+          <input id="camp-title" type="text" value="How AI is Transforming SEO in 2025"/>
+        </div>
+        <div class="form-group">
+          <label>Blog Post Content</label>
+          <textarea id="camp-content" rows="5">Artificial intelligence is fundamentally changing how search engines rank content. From semantic understanding to AI-generated content detection, SEO practitioners need to adapt their strategies. FlyRank's AI tools help businesses stay ahead of these changes by analyzing content patterns, optimizing meta tags, and identifying ranking opportunities in real-time.</textarea>
+        </div>
+        <div class="form-group">
+          <label>Target Platforms</label>
+          <div class="checkbox-group">
+            <label class="checkbox-item"><input type="checkbox" value="instagram" checked/> 📸 Instagram (1080×1080)</label>
+            <label class="checkbox-item"><input type="checkbox" value="twitter" checked/> 🐦 Twitter/X (1600×900)</label>
+            <label class="checkbox-item"><input type="checkbox" value="linkedin"/> 💼 LinkedIn (1200×628)</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Campaign Image (optional — will generate variants)</label>
+          <input type="file" id="camp-image" accept="image/*" style="background:var(--bg-mid);padding:0.5rem;border:1px solid var(--border);border-radius:6px;width:100%"/>
+        </div>
+        <button class="btn" onclick="createCampaign()" style="margin-bottom:0.5rem">📋 Create Campaign</button>
+        <div id="create-result" class="result-box hidden"></div>
+      </div>
+
+      <div class="card">
+        <h3>📊 Platform Specifications</h3>
+        <div id="platform-specs"></div>
+        <div style="margin-top:1.5rem">
+          <h3>🔄 Idempotency Demo</h3>
+          <p class="text-muted" style="font-size:0.85rem;margin-bottom:0.75rem">
+            Test that publishing the same campaign twice only creates 1 post.
+          </p>
+          <div class="form-group">
+            <label>Campaign ID to publish twice</label>
+            <input id="idem-campaign-id" type="text" placeholder="camp_xxxxx"/>
+          </div>
+          <button class="btn btn-outline" onclick="testIdempotency()">🔄 Publish Twice (Idempotency Test)</button>
+          <div id="idem-result" class="result-box hidden"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: CAPTIONS -->
+  <div id="tab-captions" class="tab-panel hidden">
+    <div class="card">
+      <h3>✍️ Platform Caption Generator (Prompt Fragment Composition)</h3>
+      <div class="grid">
+        <div>
+          <div class="form-group">
+            <label>Post Title</label>
+            <input id="cap-title" type="text" value="AI-Powered SEO: The Complete Guide for 2025"/>
+          </div>
+          <div class="form-group">
+            <label>Post Content</label>
+            <textarea id="cap-content" rows="4">Search engine optimization is evolving rapidly with AI tools. This guide covers everything from semantic search to content optimization strategies that actually work in 2025.</textarea>
+          </div>
+          <button class="btn" onclick="previewCaptions()">✍️ Generate All Captions</button>
+        </div>
+        <div id="captions-result"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: IMAGE VARIANTS -->
+  <div id="tab-images" class="tab-panel hidden">
+    <div class="grid">
+      <div class="card">
+        <h3>🖼️ Upload Image → Get Variants</h3>
+        <p class="text-muted" style="font-size:0.85rem;margin-bottom:1rem">
+          Upload any image. Pillow resizes/crops it for each platform maintaining safe zone.
+        </p>
+        <div class="upload-zone" onclick="document.getElementById('img-upload').click()" 
+             ondrop="handleImgDrop(event)" ondragover="event.preventDefault()">
+          <div style="font-size:2.5rem">🖼️</div>
+          <p>Click or drag image here</p>
+          <input type="file" id="img-upload" accept="image/*" style="display:none" onchange="uploadForVariants(event)"/>
+        </div>
+        <div id="img-upload-result" class="result-box hidden" style="margin-top:1rem"></div>
+      </div>
+      <div class="card">
+        <h3>📐 Target Dimensions</h3>
+        <div class="platform-specs-grid" id="img-specs-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: WEBHOOK TESTER -->
+  <div id="tab-webhook" class="tab-panel hidden">
+    <div class="grid">
+      <div class="card">
+        <h3>🔗 Webhook HMAC Verification</h3>
+        <p class="text-muted" style="font-size:0.85rem;margin-bottom:1rem">
+          Simulate Fake Social Platform sending signed/forged webhooks. 
+          Only valid HMAC signatures are accepted (400 for forged).
+        </p>
+        <div class="form-group">
+          <label>Post ID</label>
+          <input id="wh-post-id" type="text" value="fake_post_abc123"/>
+        </div>
+        <div class="form-group">
+          <label>Platform</label>
+          <select id="wh-platform"><option>instagram</option><option>twitter</option></select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:0.5rem">
+          <button class="btn" onclick="testWebhook(false)">✅ Send Valid Webhook</button>
+          <button class="btn" style="background:linear-gradient(135deg,#7C3AED,#A855F7)" onclick="testWebhook(true)">🚫 Send Forged Webhook</button>
+        </div>
+        <div id="webhook-result" class="result-box hidden" style="margin-top:1rem"></div>
+      </div>
+      <div class="card">
+        <h3>🛡️ Security Features</h3>
+        <div class="feature-list">
+          <div class="feature-item"><span class="check">✅</span> <span>HMAC-SHA256 signature verification on every webhook</span></div>
+          <div class="feature-item"><span class="check">✅</span> <span>Forged/tampered webhooks rejected with HTTP 400</span></div>
+          <div class="feature-item"><span class="check">✅</span> <span>Duplicate webhook deduplication (processed once)</span></div>
+          <div class="feature-item"><span class="check">✅</span> <span>Campaign status only updates on valid webhooks</span></div>
+          <div class="feature-item"><span class="check">✅</span> <span>Tokens stored AES-GCM encrypted (never plaintext)</span></div>
+          <div class="feature-item"><span class="check">✅</span> <span>Rate limit 429 + Retry-After with exponential backoff</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: STATUS -->
+  <div id="tab-status" class="tab-panel hidden">
+    <div class="card">
+      <h3>📊 All Campaigns</h3>
+      <button class="btn btn-outline" onclick="loadCampaigns()" style="margin-bottom:1rem">🔄 Refresh</button>
+      <div id="campaigns-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  const tabs = ['campaign','captions','images','webhook','status'];
+  document.querySelectorAll('.tab')[tabs.indexOf(name)].classList.add('active');
+  if (name === 'status') loadCampaigns();
+}
+
+async function loadPlatformSpecs() {
+  try {
+    const r = await fetch(API + '/api/platforms');
+    const d = await r.json();
+    const specs = d.platforms;
+    document.getElementById('platform-specs').innerHTML = Object.entries(specs).map(([p, s]) => `
+      <div class="metric-row">
+        <span style="text-transform:capitalize;font-weight:600">${p === 'twitter' ? '🐦 Twitter/X' : p === 'instagram' ? '📸 Instagram' : '💼 LinkedIn'}</span>
+        <span style="font-size:0.82rem;color:var(--primary)">${s.width}×${s.height} (${s.ratio})</span>
+      </div>`).join('');
+    document.getElementById('img-specs-grid').innerHTML = Object.entries(specs).map(([p, s]) => `
+      <div style="background:var(--bg-mid);border:1px solid var(--border);border-radius:8px;padding:1rem;text-align:center">
+        <div style="font-size:1.5rem">${p==='instagram'?'📸':p==='twitter'?'🐦':'💼'}</div>
+        <div style="font-weight:600;text-transform:capitalize">${p}</div>
+        <div style="color:var(--primary);font-family:var(--font-mono);font-size:0.85rem">${s.width} × ${s.height}</div>
+        <div style="color:var(--text-muted);font-size:0.75rem">${s.ratio} ratio</div>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+async function createCampaign() {
+  const platforms = Array.from(document.querySelectorAll('.checkbox-group input:checked')).map(i => i.value);
+  if (!platforms.length) { alert('Select at least one platform'); return; }
+  
+  const el = document.getElementById('create-result');
+  el.classList.remove('hidden');
+  el.textContent = '⏳ Creating campaign...';
+  
+  const fd = new FormData();
+  fd.append('title', document.getElementById('camp-title').value);
+  fd.append('content', document.getElementById('camp-content').value);
+  fd.append('platforms', JSON.stringify(platforms));
+  const imgFile = document.getElementById('camp-image').files[0];
+  if (imgFile) fd.append('image', imgFile);
+  
+  try {
+    const r = await fetch(API + '/api/campaigns', {method:'POST', body: fd});
+    const d = await r.json();
+    if (!r.ok) { el.textContent = '❌ ' + JSON.stringify(d.detail); return; }
+    
+    const camp = d.campaign;
+    document.getElementById('idem-campaign-id').value = camp.campaign_id;
+    
+    el.innerHTML = `✅ Campaign created: <strong>${camp.campaign_id}</strong><br/>
+      Platforms: ${camp.platforms.join(', ')}<br/>
+      Status: ${camp.status}
+      <br/><br/>
+      <button onclick="publishCampaign('${camp.campaign_id}')" style="background:var(--success);color:#000;border:none;padding:0.6rem 1.2rem;border-radius:6px;cursor:pointer;font-weight:600">🚀 Publish Now</button>`;
+  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+}
+
+async function publishCampaign(id) {
+  const el = document.getElementById('create-result');
+  el.innerHTML = (el.innerHTML || '') + '<br/>⏳ Publishing...';
+  try {
+    const r = await fetch(API + '/api/campaigns/' + id + '/publish', {method:'POST'});
+    const d = await r.json();
+    const results = d.results || {};
+    let html = `<br/><strong>Publish Results:</strong><br/>`;
+    for (const [platform, res] of Object.entries(results)) {
+      const icon = res.status === 'published' ? '✅' : res.status?.includes('idempotent') ? '🔄' : '❌';
+      html += `${icon} <strong>${platform}</strong>: ${res.status}`;
+      if (res.caption_preview) html += `<br/>&nbsp;&nbsp;Caption: "${res.caption_preview}"`;
+      if (res.image_size) html += `<br/>&nbsp;&nbsp;Image: ${res.image_size}`;
+      html += '<br/>';
+    }
+    el.innerHTML += html;
+  } catch(e) { el.innerHTML += '<br/>❌ Publish error: ' + e.message; }
+}
+
+async function testIdempotency() {
+  const id = document.getElementById('idem-campaign-id').value;
+  if (!id) { alert('Enter a campaign ID'); return; }
+  const el = document.getElementById('idem-result');
+  el.classList.remove('hidden');
+  el.textContent = '⏳ Publishing twice...';
+  
+  try {
+    const [r1, r2] = await Promise.all([
+      fetch(API + '/api/campaigns/' + id + '/publish', {method:'POST'}),
+      new Promise(resolve => setTimeout(() => fetch(API + '/api/campaigns/' + id + '/publish', {method:'POST'}).then(resolve), 500))
+    ]);
+    const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+    el.innerHTML = `Publish #1: ${Object.entries(d1.results||{}).map(([p,r])=>`${p}: ${r.status}`).join(', ')}<br/>
+      Publish #2: ${Object.entries(d2.results||{}).map(([p,r])=>`${p}: ${r.status}`).join(', ')}<br/>
+      ${Object.values(d2.results||{}).some(r=>r.status?.includes('idempotent')) ? '✅ Idempotency working — no duplicate posts!' : '⚠️ Check idempotency'}`;
+  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+}
+
+async function previewCaptions() {
+  const body = {title: document.getElementById('cap-title').value, content: document.getElementById('cap-content').value};
+  const el = document.getElementById('captions-result');
+  el.innerHTML = '⏳ Generating...';
+  try {
+    const r = await fetch(API + '/api/captions/preview', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const d = await r.json();
+    el.innerHTML = Object.entries(d.captions).map(([platform, cap]) => `
+      <div style="background:var(--bg-mid);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:0.75rem">
+        <div style="display:flex;justify-content:space-between;margin-bottom:0.5rem">
+          <strong style="text-transform:capitalize">${platform==='twitter'?'🐦 Twitter/X':platform==='instagram'?'📸 Instagram':'💼 LinkedIn'}</strong>
+          <span class="badge ${cap.within_limit ? 'badge-success' : 'badge-danger'}">${cap.length}/${cap.max_allowed} chars</span>
+        </div>
+        <div style="font-size:0.82rem;white-space:pre-wrap;color:var(--text)">${cap.caption}</div>
+        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.4rem">Style: ${cap.platform_style}</div>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = '❌ Error: ' + e.message; }
+}
+
+async function uploadForVariants(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const el = document.getElementById('img-upload-result');
+  el.classList.remove('hidden');
+  el.textContent = '⏳ Generating variants with Pillow...';
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    const r = await fetch(API + '/api/image/variants', {method:'POST', body: fd});
+    const d = await r.json();
+    el.innerHTML = `✅ <strong>${file.name}</strong> → ${Object.keys(d.variants).length} variants created:<br/><br/>` +
+      Object.entries(d.variants).map(([p, v]) => `📐 ${p}: <strong>${v.width}×${v.height}</strong> (${v.ratio})`).join('<br/>');
+  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+}
+
+function handleImgDrop(e) {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file) uploadForVariants({target: {files: [file]}});
+}
+
+async function testWebhook(forged) {
+  const body = {
+    post_id: document.getElementById('wh-post-id').value,
+    platform: document.getElementById('wh-platform').value,
+    forge_signature: forged,
+  };
+  const el = document.getElementById('webhook-result');
+  el.classList.remove('hidden');
+  try {
+    const r = await fetch(API + '/api/webhook/test', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const d = await r.json();
+    const icon = d.signature_valid ? '✅' : '🚫';
+    el.innerHTML = `${icon} ${forged ? 'FORGED' : 'VALID'} webhook result:<br/>
+      Signature valid: <strong>${d.signature_valid}</strong><br/>
+      Message: ${d.message}`;
+    el.style.borderColor = d.signature_valid ? 'var(--success)' : 'var(--danger)';
+  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+}
+
+async function loadCampaigns() {
+  const el = document.getElementById('campaigns-list');
+  el.innerHTML = '<p class="text-muted">Loading...</p>';
+  try {
+    const r = await fetch(API + '/api/campaigns');
+    const d = await r.json();
+    if (!d.campaigns.length) { el.innerHTML = '<p class="text-muted">No campaigns yet. Create one!</p>'; return; }
+    el.innerHTML = d.campaigns.map(c => `
+      <div style="background:var(--bg-mid);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:0.75rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem">
+          <strong>${c.title}</strong>
+          <span class="badge ${c.status==='published'?'badge-success':c.status==='draft'?'badge-warning':'badge-danger'}">${c.status}</span>
+        </div>
+        <div style="font-size:0.78rem;color:var(--text-muted)">
+          ID: ${c.campaign_id} · Platforms: ${JSON.parse(c.platforms||'[]').join(', ')} · ${(c.created_at||'').slice(0,16)}
+        </div>
+        <button onclick="publishCampaignById('${c.campaign_id}')" style="margin-top:0.5rem;background:transparent;border:1px solid var(--primary);color:var(--primary);padding:0.3rem 0.75rem;border-radius:4px;cursor:pointer;font-size:0.8rem">
+          🚀 Publish
+        </button>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = '<p style="color:var(--danger)">Error: ' + e.message + '</p>'; }
+}
+
+async function publishCampaignById(id) {
+  const r = await fetch(API + '/api/campaigns/' + id + '/publish', {method:'POST'});
+  const d = await r.json();
+  alert(JSON.stringify(d.results, null, 2));
+  loadCampaigns();
+}
+
+loadPlatformSpecs();
+</script>
+</body>
+</html>

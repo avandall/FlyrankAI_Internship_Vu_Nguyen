@@ -1,0 +1,33 @@
+:root {
+  --bg-dark: #0B0F17; --bg-card: #141A26; --border: #232D3F; --primary: #818CF8;
+  --success: #34D399; --danger: #F43F5E; --warning: #F59E0B; --text: #F8FAFC; --text-muted: #94A3B8;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background-color: var(--bg-dark); color: var(--text); font-family: 'Inter', sans-serif; padding: 1.5rem; }
+
+.header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; }
+.logo { display: flex; align-items: center; gap: 1rem; }
+.icon { font-size: 2rem; background: #1E293B; padding: 0.5rem; border-radius: 10px; }
+.subtitle { font-size: 0.85rem; color: var(--text-muted); }
+
+.container { max-width: 1200px; margin: 0 auto; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.card { background-color: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
+.embed-box { background: #080C14; border: 2px dashed var(--border); border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+
+input { width: 100%; background: #141A26; border: 1px solid var(--border); border-radius: 6px; color: #FFF; padding: 0.6rem; margin-bottom: 0.75rem; }
+.btn { width: 100%; padding: 0.65rem; border-radius: 6px; border: none; font-weight: 600; cursor: pointer; background: var(--primary); color: #FFF; }
+.btn-secondary { background: #232D3F; width: auto; font-size: 0.8rem; }
+.btn-warning { background: var(--warning); color: #000; font-size: 0.75rem; }
+.btn-danger { background: var(--danger); color: #FFF; font-size: 0.75rem; }
+.btn-sm { padding: 0.4rem 0.8rem; }
+.test-btns { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+
+.badge { padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+.badge-success { background: rgba(52, 211, 153, 0.2); color: var(--success); }
+
+.table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.table th, .table td { padding: 0.6rem; text-align: left; border-bottom: 1px solid var(--border); }
+.margin-top { margin-top: 1rem; }
+.text-muted { color: var(--text-muted); }
+.text-sm { font-size: 0.8rem; }

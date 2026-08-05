@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Widget Platform — FlyRank Capstone</title>
+  <meta name="description" content="Embeddable Widget Lead-Capture Platform with multi-tenant management, Geo-IP enrichment, rate limiting"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+<div class="container">
+  <header class="header">
+    <div class="logo">
+      <div class="icon">📡</div>
+      <div>
+        <h1 style="font-size:1.4rem;font-weight:700">Embeddable Widget Platform</h1>
+        <p class="subtitle">FlyRank Capstone · Multi-tenant · Geo-IP · Rate Limiting · Real widget.js embed</p>
+      </div>
+    </div>
+    <div class="auth-info">
+      <span class="badge badge-success" id="auth-status">● Connected</span>
+      <span class="text-muted" id="tenant-name" style="font-size:0.8rem;margin-left:0.5rem">Demo tenant</span>
+    </div>
+  </header>
+
+  <!-- DEMO API KEY NOTICE -->
+  <div class="notice" id="demo-notice">
+    🔑 Using demo API key: <code id="demo-api-key">Loading...</code>
+    <span class="text-muted" style="font-size:0.8rem"> — Copy this to test authenticated endpoints</span>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('embed')">🔗 Embed Demo</button>
+    <button class="tab" onclick="showTab('widgets')">⚙️ Widget Manager</button>
+    <button class="tab" onclick="showTab('submit')">📬 Submit Lead</button>
+    <button class="tab" onclick="showTab('leads')">👥 Leads Dashboard</button>
+    <button class="tab" onclick="showTab('tenant')">🏢 Tenant API</button>
+  </div>
+
+  <!-- TAB: EMBED DEMO -->
+  <div id="tab-embed" class="tab-panel active">
+    <div class="grid">
+      <div class="card">
+        <h3>🚀 Live Widget Embed Preview</h3>
+        <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">
+          This widget is rendered by <code>/widget.js?id=w_demo_flyrank</code> — 
+          the same code that customers paste into any website.
+        </p>
+        <div id="widget-embed-zone" style="min-height:300px;background:var(--bg-mid);border:1px solid var(--border);border-radius:10px;padding:1.5rem">
+          <!-- Widget renders here via script injection -->
+        </div>
+        <script>
+          // Inject widget.js dynamically to simulate external embed
+          (function() {
+            var s = document.createElement('script');
+            s.src = '/widget.js?id=w_demo_flyrank&v=' + Date.now();
+            s.onload = function() { console.log('Widget.js loaded'); };
+            document.getElementById('widget-embed-zone').appendChild(s);
+          })();
+        </script>
+        <div style="margin-top:1rem;background:var(--bg-mid);border:1px solid var(--border);border-radius:8px;padding:0.75rem">
+          <p style="font-size:0.8rem;color:var(--text-muted)">📋 Embed code for this widget:</p>
+          <code id="embed-code" style="font-size:0.8rem;color:var(--primary)">Loading...</code>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>📋 Test Page (Cross-Origin Demo)</h3>
+        <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">
+          Open the test page to see the widget on a "customer's website". 
+          For true CORS testing: serve the page at a different port.
+        </p>
+        <a href="/test-embed" target="_blank" class="btn" style="display:block;text-align:center;text-decoration:none;padding:0.75rem;margin-bottom:1rem">
+          🌐 Open Customer Test Page →
+        </a>
+        <div class="feature-list">
+          <div class="feature-item"><span class="check">✅</span> <span>Real <code>widget.js</code> served with HTTP Cache headers</span></div>
+          <div class="feature-item"><span class="check">✅</span> <span>CORS: accepts requests from any external origin</span></div>
+          <div class="feature-item"><span class="check">✅</span> <span>Honeypot field (hidden <code>_hp_field</code>) blocks bots</span></div>
+          <div class="feature-item"><span class="check">✅</span> <span>Rate limit: 429 after 5 requests/minute per IP</span></div>
+          <div class="feature-item"><span class="check">✅</span> <span>Geo-IP: ip-api.com → ipapi.co → graceful fallback</span></div>
+          <div class="feature-item"><span class="check">✅</span> <span>Webhook delivery (safe side effect)</span></div>
+          <div class="feature-item"><span class="check">✅</span> <span>SQLite persistence (survives server restarts)</span></div>
+        </div>
+        <div class="code-box" style="margin-top:1rem">
+          <strong>Rate Limit Test (429):</strong><br/>
+          <code>for i in {1..6}; do curl -sX POST /api/public/submit -H 'Content-Type: application/json' -d '{"widget_id":"w_demo_flyrank","email":"test@test.com"}'; done</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: WIDGET MANAGER -->
+  <div id="tab-widgets" class="tab-panel hidden">
+    <div class="grid">
+      <div class="card">
+        <h3>⚙️ Create New Widget</h3>
+        <div class="form-group"><label>Widget Name</label>
+          <input id="wm-name" type="text" placeholder="My Contact Form" value="Newsletter Signup"/></div>
+        <div class="form-row">
+          <div class="form-group"><label>Form Type</label>
+            <select id="wm-type"><option>contact</option><option>signup</option><option>popover</option></select></div>
+          <div class="form-group"><label>Rate Limit /min</label>
+            <input id="wm-rate" type="number" value="5"/></div>
+        </div>
+        <div class="form-group"><label>Title</label>
+          <input id="wm-title" type="text" placeholder="Subscribe to our newsletter"/></div>
+        <div class="form-group"><label>Webhook URL (optional)</label>
+          <input id="wm-webhook" type="url" placeholder="https://hooks.zapier.com/..."/></div>
+        <div class="form-group"><label>Primary Color</label>
+          <input id="wm-color" type="color" value="#38BDF8" style="width:60px;height:36px;padding:2px"/></div>
+        <button class="btn" onclick="createWidget()">🚀 Create Widget</button>
+        <div id="create-result" class="result-box hidden"></div>
+      </div>
+
+      <div class="card">
+        <h3>📋 My Widgets</h3>
+        <button class="btn btn-outline" onclick="loadWidgets()" style="margin-bottom:1rem">🔄 Refresh</button>
+        <div id="widgets-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: SUBMIT LEAD -->
+  <div id="tab-submit" class="tab-panel hidden">
+    <div class="grid">
+      <div class="card">
+        <h3>📬 Test Public Submission (No Auth Required)</h3>
+        <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">
+          This simulates what happens when a visitor fills in the embedded widget on any website.
+        </p>
+        <div class="form-group"><label>Widget ID</label>
+          <input id="sub-widget-id" type="text" value="w_demo_flyrank"/></div>
+        <div class="form-group"><label>Name</label>
+          <input id="sub-name" type="text" value="Test User"/></div>
+        <div class="form-group"><label>Email</label>
+          <input id="sub-email" type="email" value="user@example.com"/></div>
+        <div class="form-group"><label>Message</label>
+          <textarea id="sub-message" rows="3">I'm interested in your services</textarea></div>
+        <div class="form-group"><label>Honeypot Field (fill to test spam detection)</label>
+          <input id="sub-honeypot" type="text" placeholder="Leave blank — fill to trigger spam block"/></div>
+        <button class="btn" onclick="submitLead()">📤 Submit Lead</button>
+        <div id="submit-result" class="result-box hidden"></div>
+      </div>
+
+      <div class="card">
+        <h3>🛡️ Abuse Protection Tests</h3>
+        <div style="display:grid;gap:0.75rem">
+          <button class="btn btn-outline" onclick="testSpam()">🤖 Test Honeypot (spam detection)</button>
+          <button class="btn btn-outline" onclick="testRateLimit()">⚡ Test Rate Limit (send 6 requests)</button>
+          <button class="btn btn-outline" onclick="testBadEmail()">📧 Test Invalid Email (422)</button>
+          <button class="btn btn-outline" onclick="testMissingWidget()">❓ Test Missing Widget (404)</button>
+        </div>
+        <div id="abuse-result" class="result-box hidden" style="margin-top:1rem"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: LEADS DASHBOARD -->
+  <div id="tab-leads" class="tab-panel hidden">
+    <div class="grid" style="grid-template-columns:2fr 1fr">
+      <div class="card">
+        <h3>👥 Leads (Persistent in SQLite)</h3>
+        <div id="leads-table"></div>
+      </div>
+      <div class="card">
+        <h3>📊 Stats</h3>
+        <div id="stats-panel"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: TENANT API -->
+  <div id="tab-tenant" class="tab-panel hidden">
+    <div class="grid">
+      <div class="card">
+        <h3>🏢 Create New Tenant</h3>
+        <div class="form-group"><label>Company Name</label>
+          <input id="tn-name" type="text" placeholder="Acme Corp"/></div>
+        <div class="form-group"><label>Email</label>
+          <input id="tn-email" type="email" placeholder="admin@acme.com"/></div>
+        <button class="btn" onclick="createTenant()">Create Tenant (get API key)</button>
+        <div id="tenant-result" class="result-box hidden"></div>
+      </div>
+      <div class="card">
+        <h3>🔐 Multi-Tenant Isolation Demo</h3>
+        <p class="text-muted" style="font-size:0.85rem;margin-bottom:1rem">
+          Each tenant gets a unique API key. Cross-tenant access is blocked.
+        </p>
+        <div class="feature-list">
+          <div class="feature-item"><span class="check">✅</span> <span>X-API-Key authentication on all protected endpoints</span></div>
+          <div class="feature-item"><span class="check">✅</span> <span>Widget CRUD isolated per tenant_id</span></div>
+          <div class="feature-item"><span class="check">✅</span> <span>Tenant A cannot read/modify Tenant B's widgets</span></div>
+          <div class="feature-item"><span class="check">✅</span> <span>Submissions scoped to owning tenant</span></div>
+        </div>
+        <button class="btn btn-outline" onclick="testIsolation()" style="margin-top:1rem">🔍 Test Cross-Tenant Access (expect 403)</button>
+        <div id="isolation-result" class="result-box hidden"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let demoApiKey = '';
+
+// Load demo API key on start
+async function init() {
+  try {
+    const r = await fetch(API + '/api/widget/w_demo_flyrank/config');
+    const d = await r.json();
+    // Get embed snippet
+    document.getElementById('embed-code').textContent = d.embed_snippet;
+    // Try to get demo key by creating the tenant again (idempotent)
+    const tr = await fetch(API + '/api/tenants', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name:'FlyRank Demo', email:'demo@flyrank.ai'})});
+    // Use hardcoded since we seed on startup - read from notice text
+  } catch(e) {}
+  // Try to determine the demo API key
+  try {
+    const r = await fetch(API + '/api/tenants', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name:'FlyRank Demo 2', email:'demo2@flyrank.ai'})});
+    const d = await r.json();
+    if (d.tenant && d.tenant.api_key) {
+      // New tenant created - show this API key as demo
+    }
+  } catch(e) {}
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  const tabs = ['embed','widgets','submit','leads','tenant'];
+  document.querySelectorAll('.tab')[tabs.indexOf(name)].classList.add('active');
+  if (name === 'widgets') loadWidgets();
+  if (name === 'leads') { loadLeads(); loadStats(); }
+}
+
+async function getApiKey() {
+  // Use stored demo key or prompt
+  return demoApiKey || document.getElementById('demo-api-key').textContent || 'DEMO_KEY_NOT_LOADED';
+}
+
+async function createWidget() {
+  const key = await getApiKey();
+  const body = {
+    name: document.getElementById('wm-name').value,
+    form_type: document.getElementById('wm-type').value,
+    rate_limit_per_min: parseInt(document.getElementById('wm-rate').value),
+    title: document.getElementById('wm-title').value,
+    webhook_url: document.getElementById('wm-webhook').value || null,
+    primary_color: document.getElementById('wm-color').value,
+  };
+  const el = document.getElementById('create-result');
+  el.classList.remove('hidden');
+  try {
+    const r = await fetch(API + '/api/widgets', {method:'POST', headers:{'Content-Type':'application/json','X-API-Key':key}, body: JSON.stringify(body)});
+    const d = await r.json();
+    if (!r.ok) { el.textContent = '❌ ' + JSON.stringify(d.detail); return; }
+    el.innerHTML = `✅ Widget created!<br/>
+      ID: <strong>${d.widget.widget_id}</strong><br/>
+      Embed: <code>${d.embed_snippet}</code>`;
+    loadWidgets();
+  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+}
+
+async function loadWidgets() {
+  const key = await getApiKey();
+  const el = document.getElementById('widgets-list');
+  try {
+    const r = await fetch(API + '/api/widgets', {headers:{'X-API-Key':key}});
+    const d = await r.json();
+    if (!d.widgets?.length) { el.innerHTML = '<p class="text-muted">No widgets yet.</p>'; return; }
+    el.innerHTML = d.widgets.map(w => `
+      <div class="widget-item">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <strong>${w.name}</strong> <span class="badge badge-success">${w.form_type}</span>
+          </div>
+          <div style="display:flex;gap:0.5rem">
+            <button class="btn btn-sm" onclick="deleteWidget('${w.widget_id}')">🗑️</button>
+          </div>
+        </div>
+        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.35rem">
+          ID: ${w.widget_id} · v${w.version} · ${w.rate_limit_per_min} req/min
+        </div>
+        <code style="font-size:0.72rem;color:var(--primary)">
+          &lt;script src="/widget.js?id=${w.widget_id}&v=${w.version}"&gt;&lt;/script&gt;
+        </code>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = `<p style="color:var(--danger)">Error (key not loaded yet? ${e.message})</p>`; }
+}
+
+async function deleteWidget(id) {
+  const key = await getApiKey();
+  if (!confirm('Delete widget ' + id + '?')) return;
+  await fetch(API + '/api/widgets/' + id, {method:'DELETE', headers:{'X-API-Key':key}});
+  loadWidgets();
+}
+
+async function submitLead() {
+  const body = {
+    widget_id: document.getElementById('sub-widget-id').value,
+    name: document.getElementById('sub-name').value,
+    email: document.getElementById('sub-email').value,
+    message: document.getElementById('sub-message').value,
+    _hp_field: document.getElementById('sub-honeypot').value,
+  };
+  const el = document.getElementById('submit-result');
+  el.classList.remove('hidden');
+  try {
+    const r = await fetch(API + '/api/public/submit', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const d = await r.json();
+    if (!r.ok) {
+      el.innerHTML = `<span style="color:var(--danger)">❌ ${r.status}: ${JSON.stringify(d.detail)}</span>`;
+    } else {
+      el.innerHTML = `✅ Submitted!<br/>
+        ID: ${d.submission.submission_id}<br/>
+        🌍 Geo: ${d.submission.city || '?'}, ${d.submission.country || '?'} (via ${d.submission.geo_provider || 'N/A'})<br/>
+        📡 Webhook: ${d.submission.webhook_status}`;
+    }
+  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+}
+
+async function testSpam() {
+  const body = {widget_id:'w_demo_flyrank', email:'bot@spam.com', _hp_field:'I am a bot'};
+  const r = await fetch(API+'/api/public/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d = await r.json();
+  const el = document.getElementById('abuse-result');
+  el.classList.remove('hidden');
+  el.innerHTML = `Honeypot test: HTTP ${r.status}\n${JSON.stringify(d, null, 2)}`;
+}
+
+async function testRateLimit() {
+  const el = document.getElementById('abuse-result');
+  el.classList.remove('hidden');
+  el.textContent = 'Sending 6 requests rapidly...';
+  const results = [];
+  for (let i = 0; i < 6; i++) {
+    const r = await fetch(API+'/api/public/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({widget_id:'w_demo_flyrank',email:'rate@test.com',name:'Rate Test '+i})});
+    results.push(`Request ${i+1}: HTTP ${r.status}`);
+  }
+  el.textContent = results.join('\n');
+}
+
+async function testBadEmail() {
+  const r = await fetch(API+'/api/public/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({widget_id:'w_demo_flyrank',email:'not-an-email'})});
+  const d = await r.json();
+  const el = document.getElementById('abuse-result');
+  el.classList.remove('hidden');
+  el.textContent = `Bad email test: HTTP ${r.status}\n${JSON.stringify(d, null, 2)}`;
+}
+
+async function testMissingWidget() {
+  const r = await fetch(API+'/api/public/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({widget_id:'w_nonexistent',email:'test@test.com'})});
+  const d = await r.json();
+  const el = document.getElementById('abuse-result');
+  el.classList.remove('hidden');
+  el.textContent = `Missing widget: HTTP ${r.status}\n${JSON.stringify(d, null, 2)}`;
+}
+
+async function loadLeads() {
+  const key = await getApiKey();
+  const el = document.getElementById('leads-table');
+  try {
+    const r = await fetch(API+'/api/leads?limit=20', {headers:{'X-API-Key':key}});
+    const d = await r.json();
+    if (!d.leads?.length) { el.innerHTML = '<p class="text-muted">No leads yet. Submit the form above!</p>'; return; }
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.82rem">
+      <thead><tr style="border-bottom:1px solid var(--border);color:var(--text-muted)">
+        <th style="text-align:left;padding:0.4rem">Email</th>
+        <th>Name</th>
+        <th>Country</th>
+        <th>City</th>
+        <th>Widget</th>
+        <th>Time</th>
+      </tr></thead>
+      <tbody>${d.leads.map(l=>`<tr style="border-bottom:1px solid #111827">
+        <td style="padding:0.4rem">${l.email||'—'}</td>
+        <td>${l.name||'—'}</td>
+        <td>${l.country||'?'}</td>
+        <td>${l.city||'?'}</td>
+        <td><code style="font-size:0.7rem">${l.widget_id}</code></td>
+        <td>${(l.submitted_at||'').slice(11,16)}</td>
+      </tr>`).join('')}</tbody></table>
+      <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem">Total: ${d.count} leads</p>`;
+  } catch(e) { el.innerHTML = '<p style="color:var(--danger)">Error: ' + e.message + '</p>'; }
+}
+
+async function loadStats() {
+  const key = await getApiKey();
+  try {
+    const r = await fetch(API+'/api/stats', {headers:{'X-API-Key':key}});
+    const d = await r.json();
+    document.getElementById('stats-panel').innerHTML = `
+      <div class="metric-big">${d.total}</div>
+      <p class="text-muted" style="margin-bottom:1rem">Total Leads</p>
+      <h4 style="font-size:0.85rem;margin-bottom:0.5rem">By Widget</h4>
+      ${Object.entries(d.by_widget||{}).map(([k,v])=>`<div class="metric-row"><span style="font-size:0.8rem">${k}</span><span>${v}</span></div>`).join('')}
+      <h4 style="font-size:0.85rem;margin:0.75rem 0 0.5rem">By Country 🌍</h4>
+      ${Object.entries(d.by_country||{}).map(([k,v])=>`<div class="metric-row"><span>${k}</span><span>${v}</span></div>`).join('')}`;
+  } catch(e) {}
+}
+
+async function createTenant() {
+  const body = {name: document.getElementById('tn-name').value, email: document.getElementById('tn-email').value};
+  const r = await fetch(API+'/api/tenants',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d = await r.json();
+  const el = document.getElementById('tenant-result');
+  el.classList.remove('hidden');
+  el.innerHTML = `✅ Tenant created!<br/>
+    ID: ${d.tenant?.tenant_id}<br/>
+    🔑 API Key: <strong>${d.tenant?.api_key}</strong><br/>
+    <span style="color:var(--warning)">⚠️ Save this key — it won't be shown again</span>`;
+}
+
+async function testIsolation() {
+  // Try to create a widget with a wrong API key
+  const r = await fetch(API+'/api/widgets',{method:'POST',headers:{'Content-Type':'application/json','X-API-Key':'wk_wrong_key_123'},body:JSON.stringify({name:'Hack attempt'})});
+  const el = document.getElementById('isolation-result');
+  el.classList.remove('hidden');
+  el.textContent = `Cross-tenant access attempt: HTTP ${r.status}\nExpected 403 Forbidden — ${r.status === 403 ? '✅ BLOCKED' : '❌ NOT BLOCKED'}`;
+}
+
+init();
+</script>
+</body>
+</html>

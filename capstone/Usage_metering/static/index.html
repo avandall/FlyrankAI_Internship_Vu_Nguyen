@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Usage Metering & Billing — FlyRank Capstone</title>
+  <meta name="description" content="Metering engine with idempotency, micro-cent calculation, quotas, and Stripe webhook handling"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+<div class="container">
+  <header class="header">
+    <div class="logo">
+      <div class="icon">💳</div>
+      <div>
+        <h1 style="font-size:1.4rem;font-weight:700">Usage Metering & Billing Engine</h1>
+        <p class="subtitle">FlyRank Capstone · Micro-cent pricing · Idempotent events · Quota 429 · Stripe Webhooks</p>
+      </div>
+    </div>
+    <div class="auth-info" style="display:flex;align-items:center;gap:1rem">
+      <select id="active-tenant" onchange="loadTenantData()" style="padding:0.4rem;border-radius:6px;background:var(--bg-mid);border:1px solid var(--border);color:var(--text)">
+        <option value="t_demo_free">Demo Tenant (Free Plan)</option>
+        <option value="t_demo_pro">Pro Tenant (Pro Plan)</option>
+      </select>
+      <span class="badge badge-success">● API Active</span>
+    </div>
+  </header>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('dashboard')">📊 Usage Dashboard</button>
+    <button class="tab" onclick="showTab('events')">📡 Simulate Events</button>
+    <button class="tab" onclick="showTab('stripe')">💳 Stripe Webhooks</button>
+  </div>
+
+  <!-- TAB: DASHBOARD -->
+  <div id="tab-dashboard" class="tab-panel active">
+    <div class="grid">
+      <div class="card">
+        <h3>📈 Current Usage & Quotas</h3>
+        <div id="quota-panel" style="margin-top:1rem">Loading...</div>
+      </div>
+      <div class="card">
+        <h3>🧾 Monthly Invoice (Micro-cents)</h3>
+        <p class="text-muted" style="font-size:0.85rem;margin-bottom:1rem">
+          All calculations are done in integer micro-cents (1 unit = $0.00000001) to avoid float rounding errors.
+        </p>
+        <div id="invoice-panel">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: EVENTS -->
+  <div id="tab-events" class="tab-panel hidden">
+    <div class="grid">
+      <div class="card">
+        <h3>📡 Send Usage Event</h3>
+        <div class="form-group">
+          <label>Event Type</label>
+          <select id="ev-type" onchange="toggleTokenTypes()">
+            <option value="api_call">API Call</option>
+            <option value="ai_tokens">AI Tokens</option>
+          </select>
+        </div>
+        <div class="form-group" id="ev-token-group" style="display:none">
+          <label>Token Type</label>
+          <select id="ev-token-type">
+            <option value="input">Input Token (750 µ¢)</option>
+            <option value="cached_input">Cached Input (375 µ¢)</option>
+            <option value="output">Output Token (3000 µ¢)</option>
+            <option value="reasoning">Reasoning Token (3000 µ¢)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Quantity</label>
+          <input id="ev-qty" type="number" value="100"/>
+        </div>
+        <div class="form-group">
+          <label>Idempotency Key (change to send new event)</label>
+          <div style="display:flex;gap:0.5rem">
+            <input id="ev-idem" type="text" value="idem_demo_01" style="flex:1"/>
+            <button class="btn btn-outline" style="width:auto;padding:0.6rem" onclick="document.getElementById('ev-idem').value='idem_'+Math.random().toString(36).substr(2,9)">🔄</button>
+          </div>
+        </div>
+        <button class="btn" onclick="sendEvent()">📤 Send Event</button>
+        <div id="event-result" class="result-box hidden"></div>
+      </div>
+      
+      <div class="card">
+        <h3>🛡️ Testing Scenarios</h3>
+        <div class="feature-list">
+          <div class="feature-item"><span class="check">🔄</span> <span><strong>Idempotency:</strong> Send the exact same Idempotency Key twice. The second call will return the cached event without double-charging.</span></div>
+          <div class="feature-item"><span class="check">🛑</span> <span><strong>Quota (429):</strong> Change quantity to 1500 (Free plan limit is 1000). The request will be rejected with HTTP 429 Quota Exceeded.</span></div>
+          <div class="feature-item"><span class="check">🧮</span> <span><strong>Micro-cents:</strong> Observe the invoice tab to see exact integer multiplication for AI token costs.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: STRIPE -->
+  <div id="tab-stripe" class="tab-panel hidden">
+    <div class="grid">
+      <div class="card">
+        <h3>💳 Simulate Stripe Webhook</h3>
+        <p class="text-muted" style="font-size:0.85rem;margin-bottom:1rem">
+          This simulates Stripe CLI sending signed webhooks to our backend.
+          The backend verifies the <code>Stripe-Signature</code> HMAC header.
+        </p>
+        <div class="form-group">
+          <label>Stripe Event Type</label>
+          <select id="str-type">
+            <option value="checkout.session.completed">checkout.session.completed (Upgrade to Pro)</option>
+            <option value="customer.subscription.deleted">customer.subscription.deleted (Downgrade to Free, 402 error on next call)</option>
+          </select>
+        </div>
+        
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:1.5rem">
+          <button class="btn" onclick="sendStripe(false)">✅ Send Valid Signature</button>
+          <button class="btn" style="background:linear-gradient(135deg,#7C3AED,#A855F7)" onclick="sendStripe(true)">🚫 Send Forged Signature</button>
+        </div>
+        <div id="stripe-result" class="result-box hidden" style="margin-top:1rem"></div>
+      </div>
+      
+      <div class="card">
+        <h3>🔐 HMAC Webhook Security</h3>
+        <div class="code-box" style="font-size:0.8rem">
+          <strong>Stripe Webhook Signature format:</strong><br/>
+          <code>Stripe-Signature: t=162000000,v1=a1b2c3d4...</code><br/><br/>
+          <strong>Backend Verification:</strong><br/>
+          <code>expected_sig = HMAC_SHA256(secret, "t.payload")</code><br/>
+          <code>compare_digest(expected_sig, v1_sig)</code>
+        </div>
+        <p class="text-muted" style="font-size:0.85rem;margin-top:1rem">
+          If you send a forged signature, the backend will return HTTP 400 Bad Request and reject the event.
+        </p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = '';
+
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  const tabs = ['dashboard','events','stripe'];
+  document.querySelectorAll('.tab')[tabs.indexOf(name)].classList.add('active');
+  if (name === 'dashboard') loadTenantData();
+}
+
+function toggleTokenTypes() {
+  const isAi = document.getElementById('ev-type').value === 'ai_tokens';
+  document.getElementById('ev-token-group').style.display = isAi ? 'block' : 'none';
+}
+
+function getTenant() {
+  return document.getElementById('active-tenant').value;
+}
+
+async function loadTenantData() {
+  const tid = getTenant();
+  const quotaEl = document.getElementById('quota-panel');
+  const invoiceEl = document.getElementById('invoice-panel');
+  
+  try {
+    const r1 = await fetch(API + '/api/usage/' + tid);
+    const d1 = await r1.json();
+    
+    quotaEl.innerHTML = `
+      <div style="display:flex;justify-content:space-between;margin-bottom:1rem">
+        <strong style="text-transform:capitalize">Plan: ${d1.plan}</strong>
+        <span class="badge ${d1.subscription_status==='active'?'badge-success':'badge-danger'}">${d1.subscription_status}</span>
+      </div>
+      
+      <h4 style="font-size:0.85rem;margin-bottom:0.5rem">API Calls</h4>
+      <div style="background:var(--bg-dark);border-radius:999px;height:12px;margin-bottom:0.25rem;overflow:hidden">
+        <div style="background:var(--primary);height:100%;width:${Math.min(100, d1.api_calls.pct)}%"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:var(--text-muted);margin-bottom:1.5rem">
+        <span>${d1.api_calls.used} used</span>
+        <span>${d1.api_calls.limit} limit</span>
+      </div>
+      
+      <h4 style="font-size:0.85rem;margin-bottom:0.5rem">AI Tokens</h4>
+      <div style="background:var(--bg-dark);border-radius:999px;height:12px;margin-bottom:0.25rem;overflow:hidden">
+        <div style="background:var(--warning);height:100%;width:${Math.min(100, d1.ai_tokens.pct)}%"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:var(--text-muted)">
+        <span>${d1.ai_tokens.used} used</span>
+        <span>${d1.ai_tokens.limit} limit</span>
+      </div>
+    `;
+    
+    const r2 = await fetch(API + '/api/invoice/' + tid);
+    const d2 = await r2.json();
+    
+    let html = `<table style="width:100%;border-collapse:collapse;font-size:0.85rem;margin-bottom:1rem">
+      <thead><tr style="border-bottom:1px solid var(--border);color:var(--text-muted)">
+        <th style="text-align:left;padding:0.4rem">Event</th>
+        <th style="text-align:left">Type</th>
+        <th style="text-align:right">Qty</th>
+        <th style="text-align:right">Micro-cents</th>
+      </tr></thead><tbody>`;
+      
+    if (d2.breakdown.length === 0) {
+      html += `<tr><td colspan="4" style="padding:1rem;text-align:center;color:var(--text-muted)">No usage yet</td></tr>`;
+    } else {
+      for (const item of d2.breakdown) {
+        html += `<tr style="border-bottom:1px solid #111827">
+          <td style="padding:0.4rem">${item.event_type}</td>
+          <td>${item.token_type || '—'}</td>
+          <td style="text-align:right">${item.total_qty}</td>
+          <td style="text-align:right;font-family:var(--font-mono)">${item.total_cost} µ¢</td>
+        </tr>`;
+      }
+    }
+    html += `</tbody></table>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:1rem;background:var(--bg-dark);border-radius:8px">
+        <span>Total Due:</span>
+        <strong style="font-size:1.25rem;color:var(--success)">${d2.total_display}</strong>
+      </div>
+    `;
+    invoiceEl.innerHTML = html;
+    
+  } catch(e) {
+    quotaEl.innerHTML = 'Error loading data';
+    invoiceEl.innerHTML = 'Error loading data';
+  }
+}
+
+async function sendEvent() {
+  const isAi = document.getElementById('ev-type').value === 'ai_tokens';
+  const body = {
+    tenant_id: getTenant(),
+    event_type: document.getElementById('ev-type').value,
+    quantity: parseInt(document.getElementById('ev-qty').value),
+    idempotency_key: document.getElementById('ev-idem').value,
+  };
+  if (isAi) body.token_type = document.getElementById('ev-token-type').value;
+  
+  const el = document.getElementById('event-result');
+  el.classList.remove('hidden');
+  el.textContent = 'Sending...';
+  
+  try {
+    const r = await fetch(API + '/api/usage/record', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    
+    if (!r.ok) {
+      el.innerHTML = `<span style="color:var(--danger)">❌ HTTP ${r.status}: ${d.detail}</span>`;
+      return;
+    }
+    
+    el.innerHTML = `✅ <strong>Recorded successfully</strong><br/>
+      Event ID: <code>${d.event.event_id}</code><br/>
+      Cost: ${d.event.cost_display} (${d.event.cost_micro_cents} µ¢)<br/>
+      ${d.event.idempotent ? '<br/><span class="badge badge-warning">🔄 Idempotent Cache Hit (No charge)</span>' : ''}`;
+      
+    // Refresh dashboard in background
+    loadTenantData();
+  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+}
+
+async function sendStripe(forge) {
+  const body = {
+    tenant_id: getTenant(),
+    event_type: document.getElementById('str-type').value,
+    forge_signature: forge
+  };
+  
+  const el = document.getElementById('stripe-result');
+  el.classList.remove('hidden');
+  el.textContent = 'Sending...';
+  
+  try {
+    const r = await fetch(API + '/api/webhook/stripe/test', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    
+    if (!r.ok) {
+      el.innerHTML = `<span style="color:var(--danger)">❌ HTTP ${r.status}: ${d.detail}</span>`;
+    } else {
+      el.innerHTML = `✅ <strong>Webhook Accepted (HTTP 200)</strong><br/>
+        Event: ${d.event_type}<br/>
+        Result: ${JSON.stringify(d.result)}`;
+    }
+    // Refresh dashboard in background to show plan changes
+    setTimeout(loadTenantData, 500);
+  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+}
+
+// Init
+toggleTokenTypes();
+loadTenantData();
+</script>
+</body>
+</html>

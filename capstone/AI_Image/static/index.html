@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Image Matching Engine — FlyRank Capstone</title>
+  <meta name="description" content="AI Image Understanding & Content Matching Engine with Vision AI, Semantic Embeddings, and Mismatch Guard"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+<div class="container">
+  <header class="header">
+    <div class="logo">
+      <div class="icon">🔍</div>
+      <div>
+        <h1 style="font-size:1.4rem;font-weight:700">AI Image Understanding & Matching Engine</h1>
+        <p class="subtitle">FlyRank Capstone · Vision AI · Semantic Embeddings · Mismatch Guard</p>
+      </div>
+    </div>
+    <div class="status-bar">
+      <span class="badge badge-success" id="health-badge">● Live</span>
+      <span class="text-muted" style="font-size:0.8rem;margin-left:0.5rem" id="img-count">Loading...</span>
+    </div>
+  </header>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('match')">🎯 Match Content</button>
+    <button class="tab" onclick="showTab('upload')">📤 Upload Image</button>
+    <button class="tab" onclick="showTab('library')">🖼️ Image Library</button>
+    <button class="tab" onclick="showTab('review')">✅ Review API</button>
+    <button class="tab" onclick="showTab('metrics')">📊 Metrics</button>
+  </div>
+
+  <!-- TAB: MATCH CONTENT -->
+  <div id="tab-match" class="tab-panel active">
+    <div class="grid">
+      <div class="card">
+        <h3>📝 Blog Post → Find Best Image</h3>
+        <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">
+          The system uses semantic embeddings to find the most relevant image. 
+          The <strong>Mismatch Guard</strong> blocks visually similar but semantically wrong matches (e.g. Wolf ≠ Fox).
+        </p>
+        <div class="form-group">
+          <label>Post Title</label>
+          <input id="post-title" type="text" placeholder="The Red Fox: Master of Survival" value="The Red Fox: Master of Survival"/>
+        </div>
+        <div class="form-group">
+          <label>Post Content (excerpt)</label>
+          <textarea id="post-text" rows="4" placeholder="Write about your blog post topic...">The red fox (Vulpes vulpes) is one of nature's most adaptable predators. Known for its distinctive russet fur and bushy tail, the fox thrives in diverse habitats from forests to urban areas. Unlike wolves, foxes are solitary hunters, relying on cunning rather than pack strategy.</textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Target Subject (optional)</label>
+            <input id="target-subject" type="text" placeholder="fox" value="fox"/>
+          </div>
+          <div class="form-group">
+            <label>Target Category (optional)</label>
+            <select id="target-category">
+              <option value="">Any category</option>
+              <option value="animal" selected>animal</option>
+              <option value="nature">nature</option>
+              <option value="urban">urban</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn" onclick="matchPost()">🔍 Find Best Image</button>
+
+        <div id="match-result" class="result-box hidden"></div>
+      </div>
+
+      <div class="card">
+        <h3>🛡️ Mismatch Guard Scenarios</h3>
+        <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">Test the safety layer that prevents wrong image suggestions</p>
+        <div style="display:grid;gap:0.75rem">
+          <button class="btn btn-outline" onclick="testScenario('fox_correct')">✅ Fox post → Fox image (should MATCH)</button>
+          <button class="btn btn-outline" onclick="testScenario('wolf_blocked')">🚫 Fox post + Wolf candidate (should REJECT)</button>
+          <button class="btn btn-outline" onclick="testScenario('no_match')">❓ Abstract post (NO CONFIDENT MATCH)</button>
+          <button class="btn btn-outline" onclick="testScenario('mountain')">🏔️ Mountain article (should MATCH landscape)</button>
+        </div>
+        <div id="scenario-result" class="result-box hidden" style="margin-top:1rem"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: UPLOAD -->
+  <div id="tab-upload" class="tab-panel hidden">
+    <div class="grid">
+      <div class="card">
+        <h3>📤 Upload Image for AI Analysis</h3>
+        <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">
+          Upload a real image file. The Vision AI pipeline extracts subject, category, 
+          semantic caption, and generates vector embeddings for matching.
+        </p>
+        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()" 
+             ondrop="handleDrop(event)" ondragover="event.preventDefault()">
+          <div style="font-size:3rem">🖼️</div>
+          <p>Click or drag & drop an image (JPG, PNG, WebP)</p>
+          <p class="text-muted" style="font-size:0.8rem">Max 10MB · Vision AI analyzes content automatically</p>
+          <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileSelect(event)"/>
+        </div>
+        <div id="upload-preview" class="hidden" style="margin-top:1rem;text-align:center">
+          <img id="preview-img" style="max-height:200px;border-radius:8px;border:1px solid var(--border)"/>
+          <p id="preview-name" class="text-muted" style="font-size:0.8rem;margin-top:0.5rem"></p>
+          <button class="btn" onclick="submitUpload()" style="margin-top:0.75rem">🚀 Run Vision AI Analysis</button>
+        </div>
+        <div id="upload-result" class="result-box hidden" style="margin-top:1rem"></div>
+      </div>
+
+      <div class="card">
+        <h3>💡 Vision AI Pipeline Info</h3>
+        <div class="pipeline-steps">
+          <div class="step">
+            <div class="step-icon">1</div>
+            <div>
+              <strong>File Validation</strong>
+              <p class="text-muted" style="font-size:0.8rem">Format check, size limit (10MB), content-type validation</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-icon">2</div>
+            <div>
+              <strong>Vision AI Analysis</strong>
+              <p class="text-muted" style="font-size:0.8rem">Calls Gemini Flash API (or Ollama llava) for semantic extraction: subject, tags, caption, confidence</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-icon">3</div>
+            <div>
+              <strong>Confidence Gate</strong>
+              <p class="text-muted" style="font-size:0.8rem">Images with confidence &lt; 0.70 are flagged and excluded from matching</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-icon">4</div>
+            <div>
+              <strong>Embedding Generation</strong>
+              <p class="text-muted" style="font-size:0.8rem">Creates 64-dim semantic vector from caption + tags for cosine similarity search</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-icon">5</div>
+            <div>
+              <strong>DB Storage (SQLite)</strong>
+              <p class="text-muted" style="font-size:0.8rem">Persists metadata + embedding. Survives server restarts.</p>
+            </div>
+          </div>
+        </div>
+        <div id="cost-info" style="margin-top:1rem"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: LIBRARY -->
+  <div id="tab-library" class="tab-panel hidden">
+    <div class="card">
+      <h3>🖼️ Image Library</h3>
+      <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">All ingested images with AI-extracted metadata. Flagged = low confidence (&lt;0.70).</p>
+      <div id="image-library-grid" class="image-grid"></div>
+    </div>
+  </div>
+
+  <!-- TAB: REVIEW -->
+  <div id="tab-review" class="tab-panel hidden">
+    <div class="grid">
+      <div class="card">
+        <h3>✅ Human Review API</h3>
+        <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">
+          Approve or reject AI-suggested image matches. Builds audit trail for Top-1 Precision measurement.
+        </p>
+        <div class="form-group">
+          <label>Image ID</label>
+          <input id="review-image-id" type="text" placeholder="img_fox_01"/>
+        </div>
+        <div class="form-group">
+          <label>Post ID</label>
+          <input id="review-post-id" type="text" placeholder="post_blog_001"/>
+        </div>
+        <div class="form-group">
+          <label>Decision</label>
+          <select id="review-decision">
+            <option value="true">✅ Approve — Image matches well</option>
+            <option value="false">❌ Reject — Wrong image suggested</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Reason (required for rejection)</label>
+          <input id="review-reason" type="text" placeholder="Wolf image suggested for fox article"/>
+        </div>
+        <button class="btn" onclick="submitReview()">Submit Review</button>
+        <div id="review-result" class="result-box hidden" style="margin-top:1rem"></div>
+      </div>
+
+      <div class="card">
+        <h3>📋 Recent Reviews</h3>
+        <div id="reviews-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: METRICS -->
+  <div id="tab-metrics" class="tab-panel hidden">
+    <div class="grid">
+      <div class="card">
+        <h3>📊 Top-1 Precision Metric</h3>
+        <div id="precision-stats"></div>
+      </div>
+      <div class="card">
+        <h3>💰 AI Cost Tracking</h3>
+        <div id="cost-stats"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  document.querySelectorAll('.tab')[['match','upload','library','review','metrics'].indexOf(name)].classList.add('active');
+  if (name === 'library') loadLibrary();
+  if (name === 'review') loadReviews();
+  if (name === 'metrics') loadMetrics();
+  if (name === 'upload') loadCosts();
+}
+
+async function matchPost() {
+  const body = {
+    post_id: 'post_' + Date.now(),
+    title: document.getElementById('post-title').value,
+    text: document.getElementById('post-text').value,
+    target_subject: document.getElementById('target-subject').value || undefined,
+    target_category: document.getElementById('target-category').value || undefined,
+  };
+  const el = document.getElementById('match-result');
+  el.classList.remove('hidden');
+  el.textContent = '⏳ Running semantic matching...';
+  try {
+    const r = await fetch(API + '/api/match', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const data = await r.json();
+    const status = data.status;
+    const icon = status === 'MATCHED' ? '✅' : status === 'REJECTED' ? '🚫' : '❓';
+    el.innerHTML = `
+      <div style="color: ${status==='MATCHED'?'var(--success)':status==='REJECTED'?'var(--danger)':'var(--warning)'}; font-weight:600; margin-bottom:0.5rem">
+        ${icon} Status: ${status}
+      </div>
+      ${data.reject_reason ? `<div style="color:var(--warning)">⚠️ Reason: ${data.reject_reason}</div>` : ''}
+      ${data.matched_image ? `
+        <div style="margin-top:0.5rem">
+          <strong>Best Match:</strong><br/>
+          📁 ${data.matched_image.filename}<br/>
+          🏷️ Subject: ${data.matched_image.subject} | ${data.matched_image.category}<br/>
+          💬 ${data.matched_image.caption}<br/>
+          📈 Similarity: ${(data.matched_image.similarity_score * 100).toFixed(1)}% | Confidence: ${(data.matched_image.confidence_score * 100).toFixed(0)}%
+        </div>` : ''}
+      <details style="margin-top:0.5rem"><summary style="cursor:pointer;color:var(--text-muted)">All candidates (${data.all_candidates?.length || 0})</summary>
+        <pre style="font-size:0.75rem;overflow:auto;max-height:200px">${JSON.stringify(data.all_candidates, null, 2)}</pre>
+      </details>`;
+  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+}
+
+const SCENARIOS = {
+  fox_correct: { title: 'The Cunning Red Fox of Northern Forests', text: 'Red foxes are fascinating creatures known for their agility and intelligence. The Vulpes vulpes species inhabits forests across the world.', target_subject: 'fox', target_category: 'animal' },
+  wolf_blocked: { title: 'Red Fox Biology and Behavior', text: 'Foxes are smaller than wolves but equally cunning. The wolf and fox are both canids but diverged millions of years ago.', target_subject: 'fox', target_category: 'animal' },
+  no_match: { title: 'Quantum Computing Breakthroughs in 2025', text: 'Superconducting qubits have reached new levels of coherence time, enabling practical quantum advantage over classical algorithms.', target_subject: undefined, target_category: undefined },
+  mountain: { title: 'Hiking the High Alpine Peaks of Switzerland', text: 'The Swiss Alps offer some of the most breathtaking mountain scenery in the world, with peaks rising above 4000 meters.', target_subject: 'mountain', target_category: 'nature' },
+};
+
+async function testScenario(name) {
+  const el = document.getElementById('scenario-result');
+  el.classList.remove('hidden');
+  el.textContent = '⏳ Testing scenario: ' + name + '...';
+  const s = SCENARIOS[name];
+  try {
+    const r = await fetch(API + '/api/match', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({post_id:'test_'+name, ...s})});
+    const data = await r.json();
+    const status = data.status;
+    const icon = status === 'MATCHED' ? '✅' : status === 'REJECTED' ? '🚫' : '❓';
+    el.innerHTML = `<strong>Scenario: ${name}</strong><br/>
+      <span style="color:${status==='MATCHED'?'var(--success)':status==='REJECTED'?'var(--danger)':'var(--warning)'}">${icon} ${status}</span>
+      ${data.reject_reason ? `<br/>⚠️ ${data.reject_reason}` : ''}
+      ${data.matched_image ? `<br/>📁 → ${data.matched_image.filename} (sim: ${(data.matched_image.similarity_score*100).toFixed(1)}%)` : ''}`;
+  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+}
+
+let selectedFile = null;
+function handleFileSelect(e) {
+  selectedFile = e.target.files[0];
+  showPreview(selectedFile);
+}
+function handleDrop(e) {
+  e.preventDefault();
+  selectedFile = e.dataTransfer.files[0];
+  showPreview(selectedFile);
+}
+function showPreview(file) {
+  if (!file) return;
+  document.getElementById('upload-preview').classList.remove('hidden');
+  document.getElementById('preview-name').textContent = file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)';
+  const reader = new FileReader();
+  reader.onload = e => document.getElementById('preview-img').src = e.target.result;
+  reader.readAsDataURL(file);
+}
+async function submitUpload() {
+  if (!selectedFile) return;
+  const el = document.getElementById('upload-result');
+  el.classList.remove('hidden');
+  el.textContent = '⏳ Running Vision AI analysis...';
+  const fd = new FormData();
+  fd.append('file', selectedFile);
+  try {
+    const r = await fetch(API + '/api/ingest/upload', {method:'POST', body: fd});
+    const data = await r.json();
+    if (!r.ok) { el.textContent = '❌ ' + (data.detail || 'Upload failed'); return; }
+    const img = data.image;
+    el.innerHTML = `✅ <strong>${img.filename}</strong> analyzed!<br/>
+      🏷️ Subject: <strong>${img.subject}</strong> | Category: ${img.category}<br/>
+      💬 ${img.caption}<br/>
+      📊 Confidence: ${(img.confidence_score*100).toFixed(0)}%
+      ${img.is_flagged ? ' <span class="badge badge-danger">⚠️ FLAGGED - Low confidence</span>' : ' <span class="badge badge-success">✅ Accepted</span>'}<br/>
+      💰 AI Cost: $${(img.ai_cost_micro_usd/1000000).toFixed(6)} | Job: ${img.job_id}`;
+    loadImageCount();
+  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+}
+
+async function loadLibrary() {
+  const el = document.getElementById('image-library-grid');
+  el.innerHTML = '<p class="text-muted">Loading...</p>';
+  try {
+    const r = await fetch(API + '/api/images');
+    const data = await r.json();
+    el.innerHTML = data.images.map(img => `
+      <div class="img-card ${img.is_flagged ? 'flagged' : ''}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem">
+          <h5>${img.filename}</h5>
+          ${img.is_flagged ? '<span class="badge badge-danger">⚠️ Flagged</span>' : '<span class="badge badge-success">✅</span>'}
+        </div>
+        <div style="font-size:0.75rem;color:var(--text-muted)">
+          🏷️ ${img.subject} / ${img.category}<br/>
+          📊 Confidence: ${(img.confidence_score*100).toFixed(0)}%<br/>
+          📏 ${img.width}×${img.height}px<br/>
+          💬 <em>${(img.caption||'').substring(0,80)}${img.caption?.length>80?'...':''}</em>
+        </div>
+        <div style="margin-top:0.5rem;display:flex;gap:0.25rem;flex-wrap:wrap">
+          ${(img.attributes||[]).map(a => `<span style="background:#1E293B;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.7rem">${a}</span>`).join('')}
+        </div>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = '<p style="color:var(--danger)">Error: ' + e.message + '</p>'; }
+}
+
+async function submitReview() {
+  const body = {
+    image_id: document.getElementById('review-image-id').value,
+    post_id: document.getElementById('review-post-id').value,
+    approved: document.getElementById('review-decision').value === 'true',
+    reject_reason: document.getElementById('review-reason').value || null,
+  };
+  const el = document.getElementById('review-result');
+  el.classList.remove('hidden');
+  try {
+    const r = await fetch(API + '/api/review', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const data = await r.json();
+    el.innerHTML = `✅ Review submitted! ID: ${data.review_id}<br/>Decision: ${data.approved ? '✅ Approved' : '❌ Rejected'}`;
+    loadReviews();
+  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+}
+
+async function loadReviews() {
+  const el = document.getElementById('reviews-list');
+  try {
+    const r = await fetch(API + '/api/reviews');
+    const data = await r.json();
+    if (!data.reviews.length) { el.innerHTML = '<p class="text-muted">No reviews yet.</p>'; return; }
+    el.innerHTML = data.reviews.map(rv => `
+      <div class="review-item">
+        <div style="display:flex;justify-content:space-between">
+          <span style="font-size:0.85rem;font-weight:600">${rv.image_id}</span>
+          <span class="badge ${rv.approved ? 'badge-success' : 'badge-danger'}">${rv.approved ? '✅ Approved' : '❌ Rejected'}</span>
+        </div>
+        <div style="font-size:0.75rem;color:var(--text-muted)">Post: ${rv.post_id} · By: ${rv.reviewer}
+        ${rv.reject_reason ? '<br/>Reason: ' + rv.reject_reason : ''}</div>
+      </div>`).join('');
+  } catch(e) { el.innerHTML = '<p style="color:var(--danger)">Error</p>'; }
+}
+
+async function loadMetrics() {
+  try {
+    const [precR, costR] = await Promise.all([fetch(API+'/api/metrics/precision'), fetch(API+'/api/costs')]);
+    const prec = await precR.json();
+    const cost = await costR.json();
+    
+    document.getElementById('precision-stats').innerHTML = `
+      <div class="metric-big">${prec.precision_pct}</div>
+      <p style="color:var(--text-muted);margin:0.5rem 0">Top-1 Precision (Approved / Total Reviews)</p>
+      <div class="metric-row"><span>Total Reviews</span><span>${prec.total_reviews}</span></div>
+      <div class="metric-row"><span>Approved</span><span style="color:var(--success)">${prec.approved}</span></div>
+      <div class="metric-row"><span>Rejected</span><span style="color:var(--danger)">${prec.rejected}</span></div>`;
+    
+    document.getElementById('cost-stats').innerHTML = `
+      <div class="metric-big">${cost.total_cost_usd}</div>
+      <p style="color:var(--text-muted);margin:0.5rem 0">Total AI API Cost (simulated)</p>
+      ${Object.entries(cost.by_status||{}).map(([s, v]) => `
+        <div class="metric-row"><span>${s}</span><span>${v.count} jobs / $${(v.cost_micro_usd/1000000).toFixed(6)}</span></div>`).join('')}`;
+  } catch(e) { console.error(e); }
+}
+
+async function loadCosts() {
+  try {
+    const r = await fetch(API + '/api/costs');
+    const data = await r.json();
+    document.getElementById('cost-info').innerHTML = `
+      <div style="background:#0D1421;border:1px solid var(--border);border-radius:8px;padding:0.75rem;font-size:0.8rem">
+        💰 Total AI Cost: <strong>${data.total_cost_usd}</strong> · 
+        ${Object.entries(data.by_status||{}).map(([s,v]) => `${s}: ${v.count}`).join(' · ')}
+      </div>`;
+  } catch(e) {}
+}
+
+async function loadImageCount() {
+  try {
+    const r = await fetch(API + '/api/images');
+    const data = await r.json();
+    document.getElementById('img-count').textContent = data.images.length + ' images in library';
+  } catch(e) {}
+}
+
+loadImageCount();
+</script>
+</body>
+</html>
