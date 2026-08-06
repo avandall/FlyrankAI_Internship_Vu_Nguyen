@@ -25,10 +25,19 @@
     </div>
   </header>
 
-  <!-- DEMO API KEY NOTICE -->
+  <!-- DEMO API KEY & AUTH HEADER CONTROL -->
   <div class="notice" id="demo-notice">
-    🔑 Using demo API key: <code id="demo-api-key">Loading...</code>
-    <span class="text-muted" style="font-size:0.8rem"> — Copy this to test authenticated endpoints</span>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem">
+      <div>
+        🔑 <strong>Auth Status (X-API-Key):</strong> 
+        <input id="custom-api-key-input" type="text" style="display:inline-block;width:240px;margin:0 0.5rem;padding:0.35rem 0.6rem;font-size:0.8rem;font-family:'JetBrains Mono',monospace" placeholder="Enter API Key"/>
+        <button onclick="setCustomApiKey()" class="btn btn-sm" style="display:inline-block">Set Key</button>
+        <button onclick="showTab('tenant')" class="btn btn-sm btn-outline" style="display:inline-block;margin-left:0.35rem">➕ Register New Tenant</button>
+      </div>
+      <div style="font-size:0.8rem" class="text-muted">
+        Active Key: <code id="demo-api-key" style="color:var(--primary)">Loading...</code>
+      </div>
+    </div>
   </div>
 
   <!-- TABS -->
@@ -37,7 +46,7 @@
     <button class="tab" onclick="showTab('widgets')">⚙️ Widget Manager</button>
     <button class="tab" onclick="showTab('submit')">📬 Submit Lead</button>
     <button class="tab" onclick="showTab('leads')">👥 Leads Dashboard</button>
-    <button class="tab" onclick="showTab('tenant')">🏢 Tenant API</button>
+    <button class="tab" onclick="showTab('tenant')">🔑 Register & Tenant API</button>
   </div>
 
   <!-- TAB: EMBED DEMO -->
@@ -212,20 +221,21 @@ async function init() {
   try {
     const r = await fetch(API + '/api/widget/w_demo_flyrank/config');
     const d = await r.json();
-    // Get embed snippet
-    document.getElementById('embed-code').textContent = d.embed_snippet;
-    // Try to get demo key by creating the tenant again (idempotent)
-    const tr = await fetch(API + '/api/tenants', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name:'FlyRank Demo', email:'demo@flyrank.ai'})});
-    // Use hardcoded since we seed on startup - read from notice text
-  } catch(e) {}
-  // Try to determine the demo API key
-  try {
-    const r = await fetch(API + '/api/tenants', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name:'FlyRank Demo 2', email:'demo2@flyrank.ai'})});
-    const d = await r.json();
-    if (d.tenant && d.tenant.api_key) {
-      // New tenant created - show this API key as demo
+    if (d.embed_snippet) {
+      document.getElementById('embed-code').textContent = d.embed_snippet;
     }
   } catch(e) {}
+  
+  try {
+    const kr = await fetch(API + '/api/tenants/demo-key');
+    const kd = await kr.json();
+    if (kd.api_key) {
+      demoApiKey = kd.api_key;
+      document.getElementById('demo-api-key').textContent = kd.api_key;
+    }
+  } catch(e) {
+    console.error('Failed to load demo key:', e);
+  }
 }
 
 function showTab(name) {
@@ -238,9 +248,20 @@ function showTab(name) {
   if (name === 'leads') { loadLeads(); loadStats(); }
 }
 
+function setCustomApiKey() {
+  const inputKey = document.getElementById('custom-api-key-input').value.trim();
+  if (inputKey) {
+    demoApiKey = inputKey;
+    document.getElementById('demo-api-key').textContent = inputKey;
+    alert('Active X-API-Key set to: ' + inputKey);
+    const activeTab = document.querySelector('.tab.active');
+    if (activeTab && activeTab.textContent.includes('Widget')) loadWidgets();
+    if (activeTab && activeTab.textContent.includes('Leads')) { loadLeads(); loadStats(); }
+  }
+}
+
 async function getApiKey() {
-  // Use stored demo key or prompt
-  return demoApiKey || document.getElementById('demo-api-key').textContent || 'DEMO_KEY_NOT_LOADED';
+  return demoApiKey || document.getElementById('demo-api-key').textContent || 'demo_secret_key_123';
 }
 
 async function createWidget() {
@@ -261,7 +282,8 @@ async function createWidget() {
     if (!r.ok) { el.textContent = '❌ ' + JSON.stringify(d.detail); return; }
     el.innerHTML = `✅ Widget created!<br/>
       ID: <strong>${d.widget.widget_id}</strong><br/>
-      Embed: <code>${d.embed_snippet}</code>`;
+      Embed: <code>${d.embed_snippet}</code><br/>
+      <a href="/test-embed?id=${d.widget.widget_id}" target="_blank" style="color:var(--primary);margin-top:0.5rem;display:inline-block">🧪 Test this new Widget on Customer Site →</a>`;
     loadWidgets();
   } catch(e) { el.textContent = '❌ Error: ' + e.message; }
 }
@@ -272,25 +294,27 @@ async function loadWidgets() {
   try {
     const r = await fetch(API + '/api/widgets', {headers:{'X-API-Key':key}});
     const d = await r.json();
+    if (!r.ok) { el.innerHTML = `<p style="color:var(--danger)">HTTP ${r.status}: ${JSON.stringify(d.detail)}</p>`; return; }
     if (!d.widgets?.length) { el.innerHTML = '<p class="text-muted">No widgets yet.</p>'; return; }
     el.innerHTML = d.widgets.map(w => `
-      <div class="widget-item">
+      <div class="widget-item" style="background:#0D1421;border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:0.75rem">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div>
-            <strong>${w.name}</strong> <span class="badge badge-success">${w.form_type}</span>
+            <strong style="color:#FFF">${w.name}</strong> <span class="badge badge-success">${w.form_type}</span>
           </div>
-          <div style="display:flex;gap:0.5rem">
-            <button class="btn btn-sm" onclick="deleteWidget('${w.widget_id}')">🗑️</button>
+          <div style="display:flex;gap:0.5rem;align-items:center">
+            <a href="/test-embed?id=${w.widget_id}" target="_blank" class="btn btn-sm btn-outline" style="text-decoration:none">🧪 Test Embed →</a>
+            <button class="btn btn-sm" onclick="deleteWidget('${w.widget_id}')" style="background:var(--danger)">🗑️</button>
           </div>
         </div>
-        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.35rem">
-          ID: ${w.widget_id} · v${w.version} · ${w.rate_limit_per_min} req/min
+        <div style="font-size:0.78rem;color:var(--text-muted);margin:0.5rem 0 0.35rem">
+          ID: <code>${w.widget_id}</code> · ${w.rate_limit_per_min} req/min
         </div>
-        <code style="font-size:0.72rem;color:var(--primary)">
-          &lt;script src="/widget.js?id=${w.widget_id}&v=${w.version}"&gt;&lt;/script&gt;
+        <code style="font-size:0.75rem;color:var(--primary);display:block;background:#05080E;padding:0.4rem;border-radius:4px">
+          &lt;script src="http://localhost:8000/widget.js?id=${w.widget_id}&v=1"&gt;&lt;/script&gt;
         </code>
       </div>`).join('');
-  } catch(e) { el.innerHTML = `<p style="color:var(--danger)">Error (key not loaded yet? ${e.message})</p>`; }
+  } catch(e) { el.innerHTML = `<p style="color:var(--danger)">Error: ${e.message}</p>`; }
 }
 
 async function deleteWidget(id) {
@@ -405,15 +429,27 @@ async function loadStats() {
 }
 
 async function createTenant() {
-  const body = {name: document.getElementById('tn-name').value, email: document.getElementById('tn-email').value};
+  const name = document.getElementById('tn-name').value.trim();
+  const email = document.getElementById('tn-email').value.trim();
+  if (!name || !email) { alert('Please enter both Company Name and Email'); return; }
+  const body = {name: name, email: email};
   const r = await fetch(API+'/api/tenants',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const d = await r.json();
   const el = document.getElementById('tenant-result');
   el.classList.remove('hidden');
-  el.innerHTML = `✅ Tenant created!<br/>
-    ID: ${d.tenant?.tenant_id}<br/>
-    🔑 API Key: <strong>${d.tenant?.api_key}</strong><br/>
-    <span style="color:var(--warning)">⚠️ Save this key — it won't be shown again</span>`;
+  if (!r.ok) { el.innerHTML = `<span style="color:var(--danger)">❌ ${JSON.stringify(d.detail)}</span>`; return; }
+  el.innerHTML = `✅ Tenant Registered Successfully!<br/>
+    Tenant ID: <strong>${d.tenant?.tenant_id}</strong><br/>
+    🔑 Generated API Key: <code style="color:var(--primary);font-size:0.9rem">${d.tenant?.api_key}</code><br/>
+    <button onclick="applyNewApiKey('${d.tenant?.api_key}')" class="btn btn-sm" style="margin-top:0.75rem;width:auto">⚡ Apply This API Key Now & Create Widgets →</button>`;
+}
+
+function applyNewApiKey(key) {
+  demoApiKey = key;
+  document.getElementById('demo-api-key').textContent = key;
+  document.getElementById('custom-api-key-input').value = key;
+  alert('API Key updated to: ' + key);
+  showTab('widgets');
 }
 
 async function testIsolation() {

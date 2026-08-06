@@ -1,36 +1,72 @@
 import os
-from fastapi import APIRouter
+import time
+from fastapi import APIRouter, Query
 from fastapi.responses import HTMLResponse
 
 router = APIRouter(tags=["UI"])
 
 @router.get("/test-embed", response_class=HTMLResponse)
-async def test_embed_page():
+async def test_embed_page(id: str = Query("w_demo_flyrank", description="Widget ID to embed")):
+    v = int(time.time())
     return f"""<!DOCTYPE html>
 <html>
-<head><title>Customer Test Page — Widget Embed Demo</title>
+<head>
+<title>Customer Test Page — Widget Embed Demo</title>
 <meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <style>
-body{{font-family:Inter,sans-serif;background:#0B0F17;color:#F1F5F9;padding:2rem;}}
-h1{{color:#38BDF8;}} .note{{background:#1E293B;padding:1rem;border-radius:8px;margin:1rem 0;font-size:0.85rem;}}
+body {{ font-family: Inter, system-ui, sans-serif; background: #0B0F17; color: #F1F5F9; padding: 2rem; max-width: 900px; margin: 0 auto; line-height: 1.5; }}
+h1 {{ color: #38BDF8; margin-bottom: 0.5rem; }}
+.note {{ background: #1E293B; border-left: 4px solid #38BDF8; padding: 1rem; border-radius: 8px; margin: 1rem 0; font-size: 0.88rem; }}
+.control-panel {{ background: #141A26; border: 1px solid #232D3F; padding: 1.25rem; border-radius: 10px; margin-bottom: 2rem; }}
+.control-row {{ display: flex; gap: 0.75rem; margin-top: 0.5rem; }}
+input {{ flex: 1; background: #0D1421; border: 1px solid #232D3F; border-radius: 6px; color: #FFF; padding: 0.65rem 0.8rem; font-size: 0.9rem; font-family: inherit; }}
+button {{ background: #38BDF8; color: #000; border: none; font-weight: 600; padding: 0.65rem 1.25rem; border-radius: 6px; cursor: pointer; white-space: nowrap; }}
+button:hover {{ opacity: 0.9; }}
+pre {{ background: #0D1421; border: 1px solid #232D3F; padding: 1rem; border-radius: 8px; font-size: 0.82rem; color: #38BDF8; overflow-x: auto; }}
 </style>
 </head>
 <body>
 <h1>🌐 Customer Website Simulation</h1>
+<p class="text-muted">Simulates an external customer website embedding your widget via <code>&lt;script&gt;</code>.</p>
+
+<!-- INTERACTIVE WIDGET SELECTOR -->
+<div class="control-panel">
+  <strong style="color:#F1F5F9;font-size:0.95rem">🧪 Test Any Custom Widget Script:</strong>
+  <div class="control-row">
+    <input id="custom-widget-id" type="text" value="{id}" placeholder="Enter Widget ID (e.g. w_12345 or paste script)" />
+    <button onclick="loadCustomWidget()">🚀 Render This Widget</button>
+  </div>
+  <p style="font-size:0.78rem;color:#94A3B8;margin-top:0.5rem">
+    Current active widget ID: <code style="color:#38BDF8">{id}</code>
+  </p>
+</div>
+
 <div class="note">
-  This page simulates a <strong>customer's external website</strong> that has embedded the FlyRank widget.
-  The widget below is loaded via <code>&lt;script src="/widget.js?id=w_demo_flyrank"&gt;</code>.
-  <br/><br/>
-  For true cross-origin testing: open this file at a different port (e.g., python3 -m http.server 5500)
-  and the widget will call back to localhost:8002 — testing real CORS.
+  <strong>How it works:</strong> The script tag below calls <code>/widget.js?id={id}</code>. 
+  When a visitor submits the form below, the data is validated, enriched with Geo-IP, and stored in PostgreSQL!
 </div>
-<h2>Welcome to Demo Customer Blog</h2>
-<p>This is a sample customer website. The contact widget below was embedded with a single script tag.</p>
+
+<h2>Welcome to Customer Blog</h2>
+<p style="color:#94A3B8;margin-bottom:1.5rem">Sample customer page containing the embedded form widget:</p>
+
 <div id="widget-container" style="margin:2rem 0;max-width:420px">
-  <script src="/widget.js?id=w_demo_flyrank&v=1"></script>
+  <script src="/widget.js?id={id}&v={v}"></script>
 </div>
-<h3>The embed code used:</h3>
-<pre style="background:#1E293B;padding:1rem;border-radius:8px;font-size:0.85rem">&lt;script src="http://localhost:8002/widget.js?id=w_demo_flyrank&amp;v=1"&gt;&lt;/script&gt;</pre>
+
+<h3>Current Embed Code Used:</h3>
+<pre id="current-code">&lt;script src="http://localhost:8000/widget.js?id={id}&amp;v=1"&gt;&lt;/script&gt;</pre>
+
+<script>
+function loadCustomWidget() {{
+  var val = document.getElementById('custom-widget-id').value.trim();
+  if (!val) return;
+  // If user pasted full script tag, extract id parameter
+  var match = val.match(/id=([a-zA-Z0-9_-]+)/);
+  var targetId = match ? match[1] : val;
+  window.location.href = '/test-embed?id=' + encodeURIComponent(targetId);
+}}
+</script>
 </body>
 </html>"""
 

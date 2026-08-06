@@ -1,3 +1,4 @@
+import asyncio
 import asyncpg
 import logging
 from typing import Optional
@@ -8,17 +9,25 @@ logger = logging.getLogger(__name__)
 # Global connection pool
 pool: Optional[asyncpg.Pool] = None
 
-async def get_db_pool() -> asyncpg.Pool:
-    global pool
-    if pool is None:
-        pool = await asyncpg.create_pool(DATABASE_URL)
-    return pool
-
 async def close_db_pool():
     global pool
     if pool:
-        await pool.close()
+        try:
+            await pool.close()
+        except Exception:
+            pass
         pool = None
+
+async def get_db_pool() -> asyncpg.Pool:
+    global pool
+    loop = asyncio.get_running_loop()
+    if pool is not None:
+        if getattr(pool, '_loop', None) is not loop or getattr(pool, '_closed', True):
+            await close_db_pool()
+
+    if pool is None:
+        pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=5)
+    return pool
 
 async def init_db():
     p = await get_db_pool()
@@ -46,8 +55,11 @@ async def init_db():
             is_active          BOOLEAN DEFAULT TRUE,
             primary_color      TEXT,
             created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id)
         );
+
+        ALTER TABLE widgets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
         CREATE TABLE IF NOT EXISTS submissions (
             submission_id  TEXT PRIMARY KEY,

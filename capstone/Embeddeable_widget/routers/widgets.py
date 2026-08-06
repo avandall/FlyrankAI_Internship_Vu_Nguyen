@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from capstone.Embeddeable_widget.services.widget import WidgetService
 from capstone.Embeddeable_widget.core.dependencies import require_tenant
+from capstone.Embeddeable_widget.schemas import WidgetCreate, WidgetUpdate, format_db_row
 
 router = APIRouter(prefix="/api", tags=["Widgets"])
 widget_svc = WidgetService()
@@ -12,8 +13,9 @@ async def get_widget_config(widget_id: str):
     if not widget:
         raise HTTPException(status_code=404, detail="Widget not found")
     embed = await widget_svc.generate_embed_snippet(widget_id)
+    clean_widget = format_db_row(widget)
     return JSONResponse(
-        content={"config": widget, "embed_snippet": embed},
+        content={"config": clean_widget, "embed_snippet": embed},
         headers={"Cache-Control": "public, max-age=60"},
     )
 

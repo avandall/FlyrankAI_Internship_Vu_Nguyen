@@ -1,26 +1,27 @@
 import secrets
 import json
 from datetime import datetime
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 from capstone.Embeddeable_widget.core.database import get_db_pool
+from capstone.Embeddeable_widget.schemas import format_db_row
 
 class WidgetService:
     async def create_widget(self, tenant_id: str, data: Dict) -> Dict:
         widget_id = data.get("widget_id") or f"w_{secrets.token_hex(5)}"
-        allowed_domains = json.dumps(data.get("allowed_domains", []))
+        allowed_domains = json.dumps(data.get("allowed_domains", ["localhost", "127.0.0.1"]))
         
         pool = await get_db_pool()
         async with pool.acquire() as conn:
             await conn.execute("""
                 INSERT INTO widgets (
                     widget_id, tenant_id, name, form_type, title, description,
-                    button_text, allowed_domains, rate_limit_per_min, webhook_url, primary_color, created_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP)
+                    button_text, allowed_domains, rate_limit_per_min, webhook_url, primary_color, created_at, updated_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ON CONFLICT (widget_id) DO NOTHING
             """,
                 widget_id, tenant_id, data.get("name", "My Widget"), data.get("form_type", "contact"),
-                data.get("title"), data.get("description"), data.get("button_text", "Submit"),
+                data.get("title", "Contact Us"), data.get("description", ""), data.get("button_text", "Submit"),
                 allowed_domains, data.get("rate_limit_per_min", 10),
                 data.get("webhook_url"), data.get("primary_color", "#38BDF8")
             )
@@ -38,7 +39,7 @@ class WidgetService:
             return None
         return self._format(dict(row))
 
-    async def get_for_tenant(self, tenant_id: str) -> list[Dict]:
+    async def get_for_tenant(self, tenant_id: str) -> List[Dict]:
         pool = await get_db_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch("SELECT * FROM widgets WHERE tenant_id=$1 ORDER BY created_at DESC", tenant_id)
@@ -53,13 +54,13 @@ class WidgetService:
             if not row:
                 return None
             
-            allowed_domains = json.dumps(data.get("allowed_domains")) if "allowed_domains" in data else row["allowed_domains"]
+            allowed_domains = json.dumps(data.get("allowed_domains")) if "allowed_domains" in data and data.get("allowed_domains") is not None else row["allowed_domains"]
             
             await conn.execute("""
                 UPDATE widgets SET
                     name=$1, form_type=$2, title=$3, description=$4,
                     button_text=$5, allowed_domains=$6, rate_limit_per_min=$7,
-                    webhook_url=$8, primary_color=$9
+                    webhook_url=$8, primary_color=$9, updated_at=CURRENT_TIMESTAMP
                 WHERE widget_id=$10 AND tenant_id=$11
             """,
                 data.get("name", row["name"]),
@@ -86,13 +87,16 @@ class WidgetService:
     async def generate_embed_snippet(self, widget_id: str, base_url: str = "http://localhost:8002") -> str:
         """Returns versioned <script> embed snippet."""
         widget = await self.get_widget(widget_id)
-        # Using a simple hash of updated_at or 1 if missing for version
         version = 1
         if widget and widget.get("updated_at"):
-             version = hash(widget["updated_at"]) % 10000
+             version = abs(hash(str(widget["updated_at"]))) % 10000 + 1
         return f'<script src="{base_url}/widget.js?id={widget_id}&v={version}" defer></script>'
 
     def _format(self, row: Dict) -> Dict:
-        if row.get("allowed_domains") and isinstance(row["allowed_domains"], str):
-            row["allowed_domains"] = json.loads(row["allowed_domains"])
-        return row
+        formatted = format_db_row(row)
+        if formatted.get("allowed_domains") and isinstance(formatted["allowed_domains"], str):
+            try:
+                formatted["allowed_domains"] = json.loads(formatted["allowed_domains"])
+            except Exception:
+                formatted["allowed_domains"] = []
+        return formatted

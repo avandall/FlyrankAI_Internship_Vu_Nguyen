@@ -1,12 +1,12 @@
 """
-Embeddable Widget & Lead-Capture Platform — FastAPI App (Port 8002)
+Embeddable Widget & Lead-Capture Platform — FastAPI App
 Rebuilt per Capstone Spec:
 - Widget CRUD with multi-tenant auth (X-API-Key header)
 - /widget.js served as versioned embeddable script
 - Public submission endpoint with CORS (cross-origin)
 - Geo-IP enrichment fallback (ip-api.com → ipapi.co)
 - Rate limiting (429), honeypot spam detection
-- Persistent SQLite storage
+- Persistent PostgreSQL storage
 - Dashboard API for leads + stats
 """
 
@@ -16,9 +16,10 @@ import logging
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-
 from contextlib import asynccontextmanager
+
 from capstone.Embeddeable_widget.core.database import init_db, close_db_pool
+from capstone.Embeddeable_widget.core.config import WIDGET_API_KEY
 from capstone.Embeddeable_widget.services.tenant import TenantService
 from capstone.Embeddeable_widget.services.widget import WidgetService
 from capstone.Embeddeable_widget.routers import widget_js, widgets, public, leads, tenants, ui
@@ -29,11 +30,13 @@ logger = logging.getLogger(__name__)
 tenant_svc = TenantService()
 widget_svc = WidgetService()
 
+DEMO_KEY = WIDGET_API_KEY or "sk_demo_flyrank_123"
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    # Seed demo tenant + widget on startup
-    demo_tenant = await tenant_svc.create_tenant("FlyRank Demo", "demo@flyrank.ai", "t_demo")
+    # Seed demo tenant + widget on startup with known demo key
+    demo_tenant = await tenant_svc.create_tenant("FlyRank Demo", "demo@flyrank.ai", "t_demo", force_api_key=DEMO_KEY)
     await widget_svc.create_widget("t_demo", {
         "widget_id": "w_demo_flyrank",
         "name": "FlyRank Contact Form",
@@ -54,8 +57,6 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan,
 )
-
-from fastapi.middleware.cors import CORSMiddleware
 
 # CORS: allow ALL origins so widget.js works from any external site
 app.add_middleware(

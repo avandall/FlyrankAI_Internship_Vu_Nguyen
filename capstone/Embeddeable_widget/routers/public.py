@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, HTTPException, Request
 from capstone.Embeddeable_widget.services.submission import SubmissionService
 from capstone.Embeddeable_widget.core.exceptions import SpamDetectedError, RateLimitError, ValidationError
@@ -5,8 +6,24 @@ from capstone.Embeddeable_widget.core.exceptions import SpamDetectedError, RateL
 router = APIRouter(prefix="/api/public", tags=["Public Submission"])
 submission_svc = SubmissionService()
 
+MAX_PAYLOAD_SIZE = 100 * 1024  # 100 KB limit
+
 @router.post("/submit")
-async def public_submit(request: Request, body: dict):
+async def public_submit(request: Request):
+    # 1. Payload size check (413 Payload Too Large)
+    content_length = request.headers.get("Content-Length")
+    if content_length and int(content_length) > MAX_PAYLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="Payload too large (max 100KB)")
+
+    raw_body = await request.body()
+    if len(raw_body) > MAX_PAYLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="Payload too large (max 100KB)")
+
+    try:
+        body = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+    except Exception:
+        raise HTTPException(status_code=422, detail="Invalid JSON payload")
+
     widget_id = body.get("widget_id", "")
     if not widget_id:
         raise HTTPException(status_code=422, detail="widget_id is required")
