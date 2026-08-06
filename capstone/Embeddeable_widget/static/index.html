@@ -54,49 +54,95 @@
     <div class="grid">
       <div class="card">
         <h3>🚀 Live Widget Embed Preview</h3>
-        <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">
-          This widget is rendered by <code>/widget.js?id=w_demo_flyrank</code> — 
-          the same code that customers paste into any website.
+        <p class="text-muted" style="margin-bottom:0.75rem;font-size:0.85rem">
+          Select a pre-designed widget below to see how it renders live on any customer website:
         </p>
+
+        <!-- Dynamic Demo Widget Switcher -->
+        <div style="margin-bottom:1rem;background:var(--bg-mid);border:1px solid var(--border);border-radius:10px;padding:0.75rem">
+          <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.4rem">💡 Select Pre-designed Demo Widget:</label>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+            <button id="btn-demo-contact" class="btn btn-sm" style="background:#38BDF8;color:#000;font-weight:700" onclick="switchDemoWidget('w_demo_flyrank', this)">📝 Contact Form (#38BDF8)</button>
+            <button id="btn-demo-popover" class="btn btn-sm btn-outline" onclick="switchDemoWidget('w_demo_popover', this)">💬 Popover Chat (#8B5CF6)</button>
+            <button id="btn-demo-signup" class="btn btn-sm btn-outline" onclick="switchDemoWidget('w_demo_signup', this)">📩 Newsletter (#10B981)</button>
+          </div>
+        </div>
+
         <div id="widget-embed-zone" style="min-height:300px;background:var(--bg-mid);border:1px solid var(--border);border-radius:10px;padding:1.5rem">
           <!-- Widget renders here via script injection -->
         </div>
         <script>
-          // Inject widget.js dynamically to simulate external embed
+          function switchDemoWidget(widgetId, btnEl) {
+            const zone = document.getElementById('widget-embed-zone');
+            zone.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem">Loading widget script...</p>';
+            
+            // Remove previous widget elements from DOM if present
+            document.querySelectorAll('[id^="flyrank-widget-"]').forEach(el => el.remove());
+
+            // Highlight active button
+            if (btnEl) {
+              document.querySelectorAll('#tab-embed .btn-sm').forEach(b => {
+                b.className = 'btn btn-sm btn-outline';
+                b.style.background = 'none';
+                b.style.color = '#FFF';
+              });
+              btnEl.className = 'btn btn-sm';
+              btnEl.style.background = 'var(--primary)';
+              btnEl.style.color = '#000';
+            }
+
+            // Update code snippet box
+            const codeEl = document.getElementById('embed-code');
+            if (codeEl) {
+              codeEl.textContent = `<script src="http://localhost:8002/widget.js?id=${widgetId}&v=1"><\/script>`;
+            }
+
+            // Inject new script
+            setTimeout(() => {
+              zone.innerHTML = '';
+              var s = document.createElement('script');
+              s.src = '/widget.js?id=' + encodeURIComponent(widgetId) + '&v=' + Date.now();
+              zone.appendChild(s);
+            }, 50);
+          }
+
+          // Initial load
           (function() {
             var s = document.createElement('script');
             s.src = '/widget.js?id=w_demo_flyrank&v=' + Date.now();
-            s.onload = function() { console.log('Widget.js loaded'); };
             document.getElementById('widget-embed-zone').appendChild(s);
           })();
         </script>
+
         <div style="margin-top:1rem;background:var(--bg-mid);border:1px solid var(--border);border-radius:8px;padding:0.75rem">
           <p style="font-size:0.8rem;color:var(--text-muted)">📋 Embed code for this widget:</p>
-          <code id="embed-code" style="font-size:0.8rem;color:var(--primary)">Loading...</code>
+          <code id="embed-code" style="font-size:0.8rem;color:var(--primary)">&lt;script src="http://localhost:8002/widget.js?id=w_demo_flyrank&amp;v=1"&gt;&lt;/script&gt;</code>
         </div>
       </div>
 
       <div class="card">
-        <h3>📋 Test Page (Cross-Origin Demo)</h3>
+        <h3>📋 Customer Site Simulator</h3>
         <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">
-          Open the test page to see the widget on a "customer's website". 
-          For true CORS testing: serve the page at a different port.
+          Open the customer test page to see how your pre-designed widgets render on an external website.
         </p>
-        <a href="/test-embed" target="_blank" class="btn" style="display:block;text-align:center;text-decoration:none;padding:0.75rem;margin-bottom:1rem">
-          🌐 Open Customer Test Page →
-        </a>
+        <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1.25rem">
+          <a href="/test-embed?id=w_demo_flyrank" target="_blank" class="btn btn-outline" style="text-align:left;text-decoration:none">
+            🌐 Test Contact Form (w_demo_flyrank) →
+          </a>
+          <a href="/test-embed?id=w_demo_popover" target="_blank" class="btn btn-outline" style="text-align:left;text-decoration:none">
+            💬 Test Popover Chat (w_demo_popover) →
+          </a>
+          <a href="/test-embed?id=w_demo_signup" target="_blank" class="btn btn-outline" style="text-align:left;text-decoration:none">
+            📩 Test Newsletter Form (w_demo_signup) →
+          </a>
+        </div>
         <div class="feature-list">
           <div class="feature-item"><span class="check">✅</span> <span>Real <code>widget.js</code> served with HTTP Cache headers</span></div>
           <div class="feature-item"><span class="check">✅</span> <span>CORS: accepts requests from any external origin</span></div>
           <div class="feature-item"><span class="check">✅</span> <span>Honeypot field (hidden <code>_hp_field</code>) blocks bots</span></div>
-          <div class="feature-item"><span class="check">✅</span> <span>Rate limit: 429 after 5 requests/minute per IP</span></div>
+          <div class="feature-item"><span class="check">✅</span> <span>Rate limit: 429 after 10 requests/minute per IP</span></div>
           <div class="feature-item"><span class="check">✅</span> <span>Geo-IP: ip-api.com → ipapi.co → graceful fallback</span></div>
-          <div class="feature-item"><span class="check">✅</span> <span>Webhook delivery (safe side effect)</span></div>
-          <div class="feature-item"><span class="check">✅</span> <span>SQLite persistence (survives server restarts)</span></div>
-        </div>
-        <div class="code-box" style="margin-top:1rem">
-          <strong>Rate Limit Test (429):</strong><br/>
-          <code>for i in {1..6}; do curl -sX POST /api/public/submit -H 'Content-Type: application/json' -d '{"widget_id":"w_demo_flyrank","email":"test@test.com"}'; done</code>
+          <div class="feature-item"><span class="check">✅</span> <span>PostgreSQL persistence (survives server restarts)</span></div>
         </div>
       </div>
     </div>
@@ -104,31 +150,84 @@
 
   <!-- TAB: WIDGET MANAGER -->
   <div id="tab-widgets" class="tab-panel hidden">
-    <div class="grid">
+    <div class="grid" style="grid-template-columns: 1.1fr 0.9fr">
+      <!-- LEFT: CREATE FORM -->
       <div class="card">
         <h3>⚙️ Create New Widget</h3>
+        
+        <!-- Form Type Quick Presets -->
+        <div style="margin-bottom:1rem">
+          <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.35rem">⚡ Form Type Presets:</label>
+          <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+            <button class="btn btn-sm btn-outline" onclick="selectPreset('contact')">📝 Contact Form</button>
+            <button class="btn btn-sm btn-outline" onclick="selectPreset('popover')">💬 Popover Chat</button>
+            <button class="btn btn-sm btn-outline" onclick="selectPreset('signup')">📩 Newsletter Signup</button>
+          </div>
+        </div>
+
         <div class="form-group"><label>Widget Name</label>
-          <input id="wm-name" type="text" placeholder="My Contact Form" value="Newsletter Signup"/></div>
+          <input id="wm-name" type="text" placeholder="My Contact Form" value="Contact Form Widget" oninput="renderLivePreview()"/></div>
+        
         <div class="form-row">
           <div class="form-group"><label>Form Type</label>
-            <select id="wm-type"><option>contact</option><option>signup</option><option>popover</option></select></div>
+            <select id="wm-type" onchange="updateFormDefaults()"><option value="contact">contact</option><option value="popover">popover</option><option value="signup">signup</option></select></div>
           <div class="form-group"><label>Rate Limit /min</label>
-            <input id="wm-rate" type="number" value="5"/></div>
+            <input id="wm-rate" type="number" value="10"/></div>
         </div>
+
         <div class="form-group"><label>Title</label>
-          <input id="wm-title" type="text" placeholder="Subscribe to our newsletter"/></div>
+          <input id="wm-title" type="text" placeholder="Get in touch with us" oninput="renderLivePreview()"/></div>
+
+        <div class="form-group"><label>Button Text</label>
+          <input id="wm-button-text" type="text" placeholder="Send Message" value="Send Message" oninput="renderLivePreview()"/></div>
+
         <div class="form-group"><label>Webhook URL (optional)</label>
           <input id="wm-webhook" type="url" placeholder="https://hooks.zapier.com/..."/></div>
-        <div class="form-group"><label>Primary Color</label>
-          <input id="wm-color" type="color" value="#38BDF8" style="width:60px;height:36px;padding:2px"/></div>
+
+        <!-- Primary Color Picker & Preset Swatches -->
+        <div class="form-group">
+          <label>Primary Color Accent</label>
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <input id="wm-color" type="color" value="#38BDF8" onchange="syncColorInput(this.value)" style="width:48px;height:36px;padding:2px;cursor:pointer;border:none;border-radius:6px;background:none"/>
+            <input id="wm-color-hex" type="text" value="#38BDF8" onchange="syncColorInput(this.value)" style="width:100px;font-family:'JetBrains Mono',monospace;font-size:0.85rem"/>
+            
+            <div style="display:flex;gap:0.3rem">
+              <span onclick="syncColorInput('#38BDF8')" style="width:24px;height:24px;border-radius:50%;background:#38BDF8;cursor:pointer;display:inline-block;border:2px solid transparent" title="Sky Blue"></span>
+              <span onclick="syncColorInput('#10B981')" style="width:24px;height:24px;border-radius:50%;background:#10B981;cursor:pointer;display:inline-block;border:2px solid transparent" title="Emerald Green"></span>
+              <span onclick="syncColorInput('#8B5CF6')" style="width:24px;height:24px;border-radius:50%;background:#8B5CF6;cursor:pointer;display:inline-block;border:2px solid transparent" title="Purple Accent"></span>
+              <span onclick="syncColorInput('#F59E0B')" style="width:24px;height:24px;border-radius:50%;background:#F59E0B;cursor:pointer;display:inline-block;border:2px solid transparent" title="Amber Orange"></span>
+              <span onclick="syncColorInput('#EC4899')" style="width:24px;height:24px;border-radius:50%;background:#EC4899;cursor:pointer;display:inline-block;border:2px solid transparent" title="Pink"></span>
+              <span onclick="syncColorInput('#EF4444')" style="width:24px;height:24px;border-radius:50%;background:#EF4444;cursor:pointer;display:inline-block;border:2px solid transparent" title="Crimson"></span>
+            </div>
+          </div>
+        </div>
+
         <button class="btn" onclick="createWidget()">🚀 Create Widget</button>
         <div id="create-result" class="result-box hidden"></div>
       </div>
 
-      <div class="card">
-        <h3>📋 My Widgets</h3>
-        <button class="btn btn-outline" onclick="loadWidgets()" style="margin-bottom:1rem">🔄 Refresh</button>
-        <div id="widgets-list"></div>
+      <!-- RIGHT: LIVE VISUAL PREVIEW & WIDGET LIST -->
+      <div style="display:flex;flex-direction:column;gap:1.25rem">
+        <!-- LIVE PREVIEW CONTAINER -->
+        <div class="card" style="border:1px solid var(--primary)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+            <h3 style="margin:0;font-size:1rem;color:var(--primary)">👁️ Live Visual Preview</h3>
+            <span class="badge badge-success" id="preview-type-badge">contact</span>
+          </div>
+          <p class="text-muted" style="font-size:0.78rem;margin-bottom:1rem">
+            Real-time visual rendering of how this widget looks on your app:
+          </p>
+          <div id="live-widget-preview-box" style="padding:0.5rem">
+            <!-- Mock preview dynamically rendered here -->
+          </div>
+        </div>
+
+        <!-- MY WIDGETS LIST -->
+        <div class="card">
+          <h3>📋 My Widgets</h3>
+          <button class="btn btn-outline btn-sm" onclick="loadWidgets()" style="margin-bottom:1rem">🔄 Refresh List</button>
+          <div id="widgets-list"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -244,7 +343,7 @@ function showTab(name) {
   document.getElementById('tab-' + name).classList.remove('hidden');
   const tabs = ['embed','widgets','submit','leads','tenant'];
   document.querySelectorAll('.tab')[tabs.indexOf(name)].classList.add('active');
-  if (name === 'widgets') loadWidgets();
+  if (name === 'widgets') { loadWidgets(); renderLivePreview(); }
   if (name === 'leads') { loadLeads(); loadStats(); }
 }
 
@@ -264,6 +363,114 @@ async function getApiKey() {
   return demoApiKey || document.getElementById('demo-api-key').textContent || 'demo_secret_key_123';
 }
 
+function syncColorInput(hex) {
+  document.getElementById('wm-color').value = hex;
+  document.getElementById('wm-color-hex').value = hex;
+  renderLivePreview();
+}
+
+function selectPreset(type) {
+  const typeSelect = document.getElementById('wm-type');
+  typeSelect.value = type;
+  updateFormDefaults();
+}
+
+function updateFormDefaults() {
+  const type = document.getElementById('wm-type').value;
+  const nameInput = document.getElementById('wm-name');
+  const titleInput = document.getElementById('wm-title');
+  const btnInput = document.getElementById('wm-button-text');
+  
+  if (type === 'popover') {
+    nameInput.value = 'Floating Chat Popover';
+    titleInput.value = 'Need help? Chat with us!';
+    btnInput.value = 'Start Conversation';
+    syncColorInput('#8B5CF6'); // Purple
+  } else if (type === 'signup') {
+    nameInput.value = 'Weekly Newsletter Signup';
+    titleInput.value = 'Subscribe to our newsletter';
+    btnInput.value = 'Subscribe Now';
+    syncColorInput('#10B981'); // Emerald
+  } else {
+    nameInput.value = 'Contact Form Widget';
+    titleInput.value = 'Get in touch with FlyRank';
+    btnInput.value = 'Send Message';
+    syncColorInput('#38BDF8'); // Sky Blue
+  }
+  renderLivePreview();
+}
+
+function renderLivePreview() {
+  const typeEl = document.getElementById('wm-type');
+  if (!typeEl) return;
+  const type = typeEl.value;
+  const title = document.getElementById('wm-title').value || 'Widget Title';
+  const btnText = document.getElementById('wm-button-text').value || 'Submit';
+  const color = document.getElementById('wm-color').value || '#38BDF8';
+  const previewBox = document.getElementById('live-widget-preview-box');
+  const badgeEl = document.getElementById('preview-type-badge');
+  if (badgeEl) badgeEl.textContent = type;
+  if (!previewBox) return;
+
+  const hexRgba = function(hex, op) {
+    hex = (hex || '#38BDF8').replace('#','');
+    if (hex.length === 3) hex = hex.split('').map(h=>h+h).join('');
+    const r = parseInt(hex.substring(0,2),16)||56, g = parseInt(hex.substring(2,4),16)||189, b = parseInt(hex.substring(4,6),16)||248;
+    return `rgba(${r},${g},${b},${op})`;
+  };
+
+  const glow = hexRgba(color, 0.3);
+  const badgeBg = hexRgba(color, 0.15);
+
+  if (type === 'popover') {
+    previewBox.innerHTML = `
+      <div style="font-family:Inter,sans-serif;position:relative;background:#080C14;padding:1.25rem;border-radius:12px;border:1px dashed ${hexRgba(color,0.4)};display:flex;flex-direction:column;gap:1rem">
+        <!-- Open Popover Card Mock -->
+        <div style="width:100%;background:#111827;border:1px solid ${hexRgba(color,0.4)};border-top:3px solid ${color};border-radius:14px;padding:1.25rem;box-shadow:0 15px 35px rgba(0,0,0,0.6), 0 0 20px ${glow}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+            <h4 style="margin:0;color:${color};font-size:1.05rem;font-weight:700">💬 ${title}</h4>
+            <span style="color:#64748B;font-size:1.2rem;cursor:pointer">&times;</span>
+          </div>
+          <p style="margin:0 0 0.75rem;font-size:0.8rem;color:#94A3B8">Chat with our support team directly from your site</p>
+          <input type="text" placeholder="Your name" style="width:100%;background:#0D1421;border:1px solid #1E293B;border-radius:6px;padding:0.5rem;font-size:0.82rem;color:#FFF;margin-bottom:0.4rem;box-sizing:border-box" disabled/>
+          <input type="email" placeholder="Email address" style="width:100%;background:#0D1421;border:1px solid #1E293B;border-radius:6px;padding:0.5rem;font-size:0.82rem;color:#FFF;margin-bottom:0.4rem;box-sizing:border-box" disabled/>
+          <button style="width:100%;background:${color};color:#000;border:none;border-radius:8px;padding:0.6rem;font-weight:700;font-size:0.85rem;margin-top:0.25rem;box-shadow:0 4px 12px ${hexRgba(color,0.35)}">${btnText}</button>
+        </div>
+
+        <!-- Trigger Button Preview -->
+        <div style="display:flex;justify-content:flex-end">
+          <div style="background:${color};color:#000;border-radius:50px;padding:0.65rem 1.2rem;font-weight:700;font-size:0.88rem;box-shadow:0 8px 20px ${hexRgba(color,0.45)};display:inline-flex;align-items:center;gap:0.4rem">
+            <span>💬</span> <span>${title}</span>
+          </div>
+        </div>
+      </div>`;
+  } else if (type === 'signup') {
+    previewBox.innerHTML = `
+      <div style="font-family:Inter,sans-serif;background:#0D1421;border:1px solid ${hexRgba(color,0.35)};border-top:3px solid ${color};border-radius:12px;padding:1.25rem;box-shadow:0 15px 30px rgba(0,0,0,0.4), 0 0 15px ${glow}">
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem">
+          <span style="font-size:0.75rem;font-weight:700;background:${badgeBg};color:${color};border:1px solid ${hexRgba(color,0.3)};padding:0.15rem 0.6rem;border-radius:20px">📩 NEWSLETTER</span>
+        </div>
+        <h4 style="margin:0 0 0.3rem;font-size:1.15rem;font-weight:700;color:#F8FAFC">${title}</h4>
+        <p style="margin:0 0 1rem;font-size:0.82rem;color:#94A3B8">Subscribe to receive weekly updates & insights</p>
+        <div style="display:flex;gap:0.5rem">
+          <input type="email" placeholder="Enter your email address..." style="flex:1;background:#05080E;border:1px solid #1E293B;border-radius:6px;padding:0.6rem;font-size:0.82rem;color:#FFF" disabled/>
+          <button style="background:${color};color:#000;border:none;border-radius:8px;padding:0.6rem 1.25rem;font-weight:700;font-size:0.82rem;white-space:nowrap;box-shadow:0 4px 12px ${hexRgba(color,0.35)}">${btnText}</button>
+        </div>
+      </div>`;
+  } else {
+    // contact (default)
+    previewBox.innerHTML = `
+      <div style="font-family:Inter,sans-serif;background:#111827;border:1px solid ${hexRgba(color,0.35)};border-top:3px solid ${color};border-radius:12px;padding:1.25rem;box-shadow:0 20px 40px rgba(0,0,0,0.5), 0 0 20px ${glow}">
+        <h4 style="margin:0 0 0.3rem;font-size:1.15rem;font-weight:700;color:${color}">📝 ${title}</h4>
+        <p style="margin:0 0 1rem;font-size:0.82rem;color:#94A3B8">Fill in your details below and we will reach out shortly</p>
+        <input type="text" placeholder="Your name" style="width:100%;background:#0D1421;border:1px solid #1E293B;border-radius:6px;padding:0.55rem;font-size:0.82rem;color:#FFF;margin-bottom:0.5rem;box-sizing:border-box" disabled/>
+        <input type="email" placeholder="Email address" style="width:100%;background:#0D1421;border:1px solid #1E293B;border-radius:6px;padding:0.55rem;font-size:0.82rem;color:#FFF;margin-bottom:0.5rem;box-sizing:border-box" disabled/>
+        <textarea placeholder="Your message..." rows="2" style="width:100%;background:#0D1421;border:1px solid #1E293B;border-radius:6px;padding:0.55rem;font-size:0.82rem;color:#FFF;margin-bottom:0.75rem;box-sizing:border-box;resize:none" disabled></textarea>
+        <button style="width:100%;background:${color};color:#000;border:none;border-radius:8px;padding:0.65rem;font-weight:700;font-size:0.88rem;box-shadow:0 4px 14px ${hexRgba(color,0.35)}">${btnText}</button>
+      </div>`;
+  }
+}
+
 async function createWidget() {
   const key = await getApiKey();
   const body = {
@@ -271,6 +478,7 @@ async function createWidget() {
     form_type: document.getElementById('wm-type').value,
     rate_limit_per_min: parseInt(document.getElementById('wm-rate').value),
     title: document.getElementById('wm-title').value,
+    button_text: document.getElementById('wm-button-text').value,
     webhook_url: document.getElementById('wm-webhook').value || null,
     primary_color: document.getElementById('wm-color').value,
   };
@@ -282,6 +490,7 @@ async function createWidget() {
     if (!r.ok) { el.textContent = '❌ ' + JSON.stringify(d.detail); return; }
     el.innerHTML = `✅ Widget created!<br/>
       ID: <strong>${d.widget.widget_id}</strong><br/>
+      Type: <span class="badge badge-success">${d.widget.form_type}</span> | Color: <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${d.widget.primary_color};margin-left:4px"></span> <code>${d.widget.primary_color}</code><br/>
       Embed: <code>${d.embed_snippet}</code><br/>
       <a href="/test-embed?id=${d.widget.widget_id}" target="_blank" style="color:var(--primary);margin-top:0.5rem;display:inline-block">🧪 Test this new Widget on Customer Site →</a>`;
     loadWidgets();
@@ -297,10 +506,15 @@ async function loadWidgets() {
     if (!r.ok) { el.innerHTML = `<p style="color:var(--danger)">HTTP ${r.status}: ${JSON.stringify(d.detail)}</p>`; return; }
     if (!d.widgets?.length) { el.innerHTML = '<p class="text-muted">No widgets yet.</p>'; return; }
     el.innerHTML = d.widgets.map(w => `
-      <div class="widget-item" style="background:#0D1421;border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:0.75rem">
+      <div class="widget-item" style="background:#0D1421;border:1px solid var(--border);border-left:4px solid ${w.primary_color || '#38BDF8'};border-radius:8px;padding:1rem;margin-bottom:0.75rem">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div>
-            <strong style="color:#FFF">${w.name}</strong> <span class="badge badge-success">${w.form_type}</span>
+            <strong style="color:#FFF">${w.name}</strong> 
+            <span class="badge badge-success" style="margin-left:0.35rem">${w.form_type}</span>
+            <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;background:rgba(255,255,255,0.05);padding:0.15rem 0.5rem;border-radius:12px;margin-left:0.35rem">
+              <span style="width:10px;height:10px;border-radius:50%;background:${w.primary_color || '#38BDF8'};display:inline-block"></span>
+              <code>${w.primary_color || '#38BDF8'}</code>
+            </span>
           </div>
           <div style="display:flex;gap:0.5rem;align-items:center">
             <a href="/test-embed?id=${w.widget_id}" target="_blank" class="btn btn-sm btn-outline" style="text-decoration:none">🧪 Test Embed →</a>
@@ -308,10 +522,10 @@ async function loadWidgets() {
           </div>
         </div>
         <div style="font-size:0.78rem;color:var(--text-muted);margin:0.5rem 0 0.35rem">
-          ID: <code>${w.widget_id}</code> · ${w.rate_limit_per_min} req/min
+          ID: <code>${w.widget_id}</code> · Title: "${w.title || 'Untitled'}" · ${w.rate_limit_per_min} req/min
         </div>
         <code style="font-size:0.75rem;color:var(--primary);display:block;background:#05080E;padding:0.4rem;border-radius:4px">
-          &lt;script src="http://localhost:8000/widget.js?id=${w.widget_id}&v=1"&gt;&lt;/script&gt;
+          &lt;script src="http://localhost:8002/widget.js?id=${w.widget_id}&v=1"&gt;&lt;/script&gt;
         </code>
       </div>`).join('');
   } catch(e) { el.innerHTML = `<p style="color:var(--danger)">Error: ${e.message}</p>`; }

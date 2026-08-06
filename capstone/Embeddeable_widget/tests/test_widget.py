@@ -121,6 +121,41 @@ async def test_widget_listing_scoped_to_tenant(tenants, widgets):
 
 
 @pytest.mark.anyio
+async def test_create_widgets_with_3_form_types_and_custom_colors(tenants, widgets):
+    t = await tenants.create_tenant("Form Types Corp", "forms@example.com", "t_forms")
+    
+    # 1. Contact form with custom blue color
+    w_contact = await widgets.create_widget(t["tenant_id"], {
+        "widget_id": "w_contact_test",
+        "name": "Contact Form",
+        "form_type": "contact",
+        "primary_color": "#38BDF8"
+    })
+    assert w_contact["form_type"] == "contact"
+    assert w_contact["primary_color"] == "#38BDF8"
+
+    # 2. Popover form with purple color
+    w_popover = await widgets.create_widget(t["tenant_id"], {
+        "widget_id": "w_popover_test",
+        "name": "Popover Chat",
+        "form_type": "popover",
+        "primary_color": "#8B5CF6"
+    })
+    assert w_popover["form_type"] == "popover"
+    assert w_popover["primary_color"] == "#8B5CF6"
+
+    # 3. Signup form with emerald color
+    w_signup = await widgets.create_widget(t["tenant_id"], {
+        "widget_id": "w_signup_test",
+        "name": "Newsletter Signup",
+        "form_type": "signup",
+        "primary_color": "#10B981"
+    })
+    assert w_signup["form_type"] == "signup"
+    assert w_signup["primary_color"] == "#10B981"
+
+
+@pytest.mark.anyio
 async def test_embed_snippet_generated(tenants, widgets):
     t = await tenants.create_tenant("Snippet Corp", "snip@example.com", "t_snip")
     await widgets.create_widget(t["tenant_id"], {"widget_id": "w_test_01", "name": "Test"})
@@ -163,6 +198,14 @@ async def test_honeypot_blocks_spam(tenants, widgets, submissions):
 
 @pytest.mark.anyio
 async def test_rate_limit_blocks_after_threshold(tenants, widgets, submissions):
+    from capstone.Embeddeable_widget.services.abuse import _in_memory_rate_store, redis_client
+    _in_memory_rate_store.clear()
+    if redis_client:
+        try:
+            await redis_client.delete("rate:w_rate_1:9.9.9.9")
+        except Exception:
+            pass
+
     t = await tenants.create_tenant("Rate Tenant", "rate_t@example.com", "t_rate")
     await widgets.create_widget(t["tenant_id"], {
         "widget_id": "w_rate_1", "name": "Rate Form", "rate_limit_per_min": 2

@@ -37,6 +37,7 @@ async def lifespan(app: FastAPI):
     await init_db()
     # Seed demo tenant + widget on startup with known demo key
     demo_tenant = await tenant_svc.create_tenant("FlyRank Demo", "demo@flyrank.ai", "t_demo", force_api_key=DEMO_KEY)
+    # Seed 3 demo widgets representing contact, popover, and signup form types
     await widget_svc.create_widget("t_demo", {
         "widget_id": "w_demo_flyrank",
         "name": "FlyRank Contact Form",
@@ -45,8 +46,30 @@ async def lifespan(app: FastAPI):
         "description": "Fill in your details and we'll get back to you",
         "button_text": "Send Message",
         "allowed_domains": ["localhost", "127.0.0.1", "flyrank.ai"],
-        "rate_limit_per_min": 5,
+        "rate_limit_per_min": 10,
         "primary_color": "#38BDF8",
+    })
+    await widget_svc.create_widget("t_demo", {
+        "widget_id": "w_demo_popover",
+        "name": "FlyRank Chat Popover",
+        "form_type": "popover",
+        "title": "Need help? Chat with us!",
+        "description": "Our team is online to answer your questions",
+        "button_text": "Start Conversation",
+        "allowed_domains": ["localhost", "127.0.0.1", "flyrank.ai"],
+        "rate_limit_per_min": 10,
+        "primary_color": "#8B5CF6",
+    })
+    await widget_svc.create_widget("t_demo", {
+        "widget_id": "w_demo_signup",
+        "name": "FlyRank Newsletter Signup",
+        "form_type": "signup",
+        "title": "Subscribe to FlyRank Weekly",
+        "description": "Get latest AI & SEO updates delivered straight to your inbox",
+        "button_text": "Subscribe Now",
+        "allowed_domains": ["localhost", "127.0.0.1", "flyrank.ai"],
+        "rate_limit_per_min": 10,
+        "primary_color": "#10B981",
     })
     yield
     await close_db_pool()

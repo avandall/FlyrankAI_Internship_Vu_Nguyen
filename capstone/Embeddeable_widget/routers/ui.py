@@ -30,12 +30,19 @@ pre {{ background: #0D1421; border: 1px solid #232D3F; padding: 1rem; border-rad
 <h1>🌐 Customer Website Simulation</h1>
 <p class="text-muted">Simulates an external customer website embedding your widget via <code>&lt;script&gt;</code>.</p>
 
-<!-- INTERACTIVE WIDGET SELECTOR -->
+<!-- INTERACTIVE WIDGET SELECTOR & PRESETS -->
 <div class="control-panel">
-  <strong style="color:#F1F5F9;font-size:0.95rem">🧪 Test Any Custom Widget Script:</strong>
+  <strong style="color:#F1F5F9;font-size:0.95rem">🧪 Quick Demo Switcher (Pre-designed Form Types):</strong>
+  <div style="display:flex;gap:0.5rem;margin:0.6rem 0 1rem;flex-wrap:wrap">
+    <a href="/test-embed?id=w_demo_flyrank" style="background:#38BDF8;color:#000;padding:0.4rem 0.8rem;border-radius:6px;font-weight:700;text-decoration:none;font-size:0.85rem">📝 Contact Form (w_demo_flyrank)</a>
+    <a href="/test-embed?id=w_demo_popover" style="background:#8B5CF6;color:#FFF;padding:0.4rem 0.8rem;border-radius:6px;font-weight:700;text-decoration:none;font-size:0.85rem">💬 Popover Chat (w_demo_popover)</a>
+    <a href="/test-embed?id=w_demo_signup" style="background:#10B981;color:#000;padding:0.4rem 0.8rem;border-radius:6px;font-weight:700;text-decoration:none;font-size:0.85rem">📩 Newsletter Signup (w_demo_signup)</a>
+  </div>
+
+  <strong style="color:#F1F5F9;font-size:0.85rem">Or enter any custom Widget ID:</strong>
   <div class="control-row">
-    <input id="custom-widget-id" type="text" value="{id}" placeholder="Enter Widget ID (e.g. w_12345 or paste script)" />
-    <button onclick="loadCustomWidget()">🚀 Render This Widget</button>
+    <input id="custom-widget-id" type="text" value="{id}" placeholder="Enter Widget ID (e.g. w_12345)" />
+    <button onclick="loadCustomWidget()">🚀 Render Widget</button>
   </div>
   <p style="font-size:0.78rem;color:#94A3B8;margin-top:0.5rem">
     Current active widget ID: <code style="color:#38BDF8">{id}</code>
@@ -44,24 +51,34 @@ pre {{ background: #0D1421; border: 1px solid #232D3F; padding: 1rem; border-rad
 
 <div class="note">
   <strong>How it works:</strong> The script tag below calls <code>/widget.js?id={id}</code>. 
-  When a visitor submits the form below, the data is validated, enriched with Geo-IP, and stored in PostgreSQL!
+  When a visitor submits the form, data is validated, enriched with Geo-IP, and saved to PostgreSQL!
 </div>
 
-<h2>Welcome to Customer Blog</h2>
+<div id="popover-hint" style="display:none;background:#8B5CF6;color:#FFF;padding:0.85rem;border-radius:8px;margin-bottom:1.5rem;font-weight:600">
+  💬 <strong>Popover Form Active:</strong> Look at the <strong>bottom-right corner</strong> of your screen! Click the floating button to open the chat window.
+</div>
+
+<h2>Welcome to Customer Site</h2>
 <p style="color:#94A3B8;margin-bottom:1.5rem">Sample customer page containing the embedded form widget:</p>
 
-<div id="widget-container" style="margin:2rem 0;max-width:420px">
+<div id="widget-container" style="margin:2rem 0;max-width:460px">
   <script src="/widget.js?id={id}&v={v}"></script>
 </div>
 
 <h3>Current Embed Code Used:</h3>
-<pre id="current-code">&lt;script src="http://localhost:8000/widget.js?id={id}&amp;v=1"&gt;&lt;/script&gt;</pre>
+<pre id="current-code">&lt;script src="http://localhost:8002/widget.js?id={id}&amp;v=1"&gt;&lt;/script&gt;</pre>
 
 <script>
+if ('{id}'.includes('popover')) {{
+  document.getElementById('popover-hint').style.display = 'block';
+  setTimeout(function() {{
+    if (window.toggleFlyrankPopover) window.toggleFlyrankPopover('{id}');
+  }}, 600);
+}}
+
 function loadCustomWidget() {{
   var val = document.getElementById('custom-widget-id').value.trim();
   if (!val) return;
-  // If user pasted full script tag, extract id parameter
   var match = val.match(/id=([a-zA-Z0-9_-]+)/);
   var targetId = match ? match[1] : val;
   window.location.href = '/test-embed?id=' + encodeURIComponent(targetId);
