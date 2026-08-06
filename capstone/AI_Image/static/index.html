@@ -89,22 +89,21 @@
   <div id="tab-upload" class="tab-panel hidden">
     <div class="grid">
       <div class="card">
-        <h3>📤 Upload Image for AI Analysis</h3>
+        <h3>📤 Upload Image(s) for AI Analysis</h3>
         <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">
-          Upload a real image file. The Vision AI pipeline extracts subject, category, 
-          semantic caption, and generates vector embeddings for matching.
+          Upload single or batch image files. Includes SHA-256 deduplication (only 1 copy stored in DB regardless of how many times uploaded).
         </p>
         <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()" 
              ondrop="handleDrop(event)" ondragover="event.preventDefault()">
           <div style="font-size:3rem">🖼️</div>
-          <p>Click or drag & drop an image (JPG, PNG, WebP)</p>
-          <p class="text-muted" style="font-size:0.8rem">Max 10MB · Vision AI analyzes content automatically</p>
-          <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileSelect(event)"/>
+          <p>Click or drag & drop image file(s) (JPG, PNG, WebP)</p>
+          <p class="text-muted" style="font-size:0.8rem">Max 10MB per file · Supports single or batch upload · Automatic deduplication</p>
+          <input type="file" id="file-input" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)"/>
         </div>
         <div id="upload-preview" class="hidden" style="margin-top:1rem;text-align:center">
-          <img id="preview-img" style="max-height:200px;border-radius:8px;border:1px solid var(--border)"/>
-          <p id="preview-name" class="text-muted" style="font-size:0.8rem;margin-top:0.5rem"></p>
-          <button class="btn" onclick="submitUpload()" style="margin-top:0.75rem">🚀 Run Vision AI Analysis</button>
+          <div id="preview-list-container" style="display:flex;gap:0.75rem;overflow-x:auto;padding-bottom:0.5rem;justify-content:center;align-items:center"></div>
+          <p id="preview-name" class="text-muted" style="font-size:0.85rem;margin-top:0.5rem;font-weight:600"></p>
+          <button id="btn-submit-upload" class="btn" onclick="submitUpload()" style="margin-top:0.75rem">🚀 Run Vision AI Analysis</button>
         </div>
         <div id="upload-result" class="result-box hidden" style="margin-top:1rem"></div>
       </div>
@@ -123,7 +122,7 @@
             <div class="step-icon">2</div>
             <div>
               <strong>Vision AI Analysis</strong>
-              <p class="text-muted" style="font-size:0.8rem">Calls Groq API (llama-3.2-11b-vision-preview or Ollama llava) for semantic extraction: subject, tags, caption, confidence</p>
+              <p class="text-muted" style="font-size:0.8rem">Calls Groq API (qwen/qwen3.6-27b Vision AI) for semantic extraction: subject, tags, caption, confidence</p>
             </div>
           </div>
           <div class="step">
@@ -156,9 +155,34 @@
   <!-- TAB: LIBRARY -->
   <div id="tab-library" class="tab-panel hidden">
     <div class="card">
-      <h3>🖼️ Image Library</h3>
-      <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">All ingested images with AI-extracted metadata. Flagged = low confidence (&lt;0.70).</p>
-      <div id="image-library-grid" class="image-grid"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:1rem">
+        <div>
+          <h3>🖼️ Image Library</h3>
+          <p class="text-muted" style="font-size:0.85rem">High-density table list view of all ingested images. Click any row to open full metadata and original image preview.</p>
+        </div>
+        <div style="display:flex;gap:0.75rem;align-items:center">
+          <input type="text" id="library-search" placeholder="🔍 Search library..." onkeyup="filterLibraryTable()" style="max-width:260px;font-size:0.85rem;padding:0.5rem 0.8rem"/>
+          <button class="btn btn-outline" onclick="loadLibrary()" style="width:auto;padding:0.5rem 1rem">🔄 Refresh</button>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table class="data-table" id="image-library-table">
+          <thead>
+            <tr>
+              <th>Preview</th>
+              <th>Image ID / Filename</th>
+              <th>Subject / Category</th>
+              <th>Confidence</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="library-table-body">
+            <tr><td colspan="6" class="text-muted" style="text-align:center;padding:2rem">Loading images...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -167,34 +191,58 @@
     <div class="grid">
       <div class="card">
         <h3>✅ Human Review API</h3>
-        <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem">
-          Approve or reject AI-suggested image matches. Builds audit trail for Top-1 Precision measurement.
+        <p class="text-muted" style="margin-bottom:1.25rem;font-size:0.85rem">
+          Select an ingested image and matching post to submit an official human decision (Approve / Reject). Updates Top-1 Precision metrics.
         </p>
+
         <div class="form-group">
-          <label>Image ID</label>
-          <input id="review-image-id" type="text" placeholder="img_fox_01"/>
-        </div>
-        <div class="form-group">
-          <label>Post ID</label>
-          <input id="review-post-id" type="text" placeholder="post_blog_001"/>
-        </div>
-        <div class="form-group">
-          <label>Decision</label>
-          <select id="review-decision">
-            <option value="true">✅ Approve — Image matches well</option>
-            <option value="false">❌ Reject — Wrong image suggested</option>
+          <label>Select Image ID</label>
+          <select id="review-image-id" onchange="onReviewImageSelectChange()">
+            <option value="">Loading images...</option>
           </select>
         </div>
-        <div class="form-group">
-          <label>Reason (required for rejection)</label>
-          <input id="review-reason" type="text" placeholder="Wolf image suggested for fox article"/>
+
+        <!-- Live Selected Image Card Preview -->
+        <div id="selected-image-preview" style="margin-bottom:1.25rem;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:10px;padding:0.85rem;display:flex;gap:1rem;align-items:center">
+          <img id="review-preview-img" style="width:64px;height:64px;border-radius:8px;object-fit:cover;border:1px solid var(--border);background:#0f172a" />
+          <div style="flex:1">
+            <div id="review-preview-filename" style="font-weight:600;font-size:0.85rem">Select an image above</div>
+            <div id="review-preview-subject" class="text-muted" style="font-size:0.75rem">Subject / Category info</div>
+            <div id="review-preview-caption" class="text-muted" style="font-size:0.75rem;font-style:italic;margin-top:0.2rem">AI Caption snippet</div>
+          </div>
         </div>
-        <button class="btn" onclick="submitReview()">Submit Review</button>
+
+        <div class="form-group">
+          <label>Select Post ID / Context</label>
+          <select id="review-post-id">
+            <option value="post_fox_article">The Red Fox: Master of Survival (post_fox_article)</option>
+            <option value="post_test_wolf_blocked">Red Fox Biology & Behavior (post_test_wolf_blocked)</option>
+            <option value="post_test_mountain">Hiking Alpine Peaks (post_test_mountain)</option>
+            <option value="post_test_no_match">Quantum Computing (post_test_no_match)</option>
+            <option value="custom">Custom Post ID...</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Decision</label>
+          <select id="review-decision" onchange="toggleRejectReasonField()">
+            <option value="true">✅ Approve — Image matches blog post topic</option>
+            <option value="false">❌ Reject — Mismatched or wrong image suggested</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="reason-group" style="display:none">
+          <label>Rejection Reason</label>
+          <input id="review-reason" type="text" placeholder="e.g. Wolf image suggested for fox article"/>
+        </div>
+
+        <button class="btn" onclick="submitReview()">Submit Human Review</button>
         <div id="review-result" class="result-box hidden" style="margin-top:1rem"></div>
       </div>
 
       <div class="card">
-        <h3>📋 Recent Reviews</h3>
+        <h3>📋 Recent Reviews Audit Trail</h3>
+        <p class="text-muted" style="margin-bottom:1rem;font-size:0.8rem">Logged evaluations used for calculating Top-1 Precision.</p>
         <div id="reviews-list"></div>
       </div>
     </div>
@@ -215,20 +263,87 @@
   </div>
 </div>
 
+<!-- IMAGE DETAIL MODAL OVERLAY -->
+<div id="image-detail-modal" class="modal-overlay hidden" onclick="closeImageModal(event)">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeImageModal()">&times;</button>
+    
+    <div style="text-align:center;margin-bottom:1.25rem">
+      <img id="modal-img-preview" style="max-height:280px;width:auto;max-width:100%;border-radius:12px;border:1px solid var(--border);box-shadow:0 8px 30px rgba(0,0,0,0.6);background:#0f172a" />
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem">
+      <div>
+        <h3 id="modal-img-title" style="margin-bottom:0.2rem">Filename</h3>
+        <span id="modal-img-id" class="text-muted" style="font-family:var(--font-mono);font-size:0.8rem">ID</span>
+      </div>
+      <div id="modal-img-status"></div>
+    </div>
+
+    <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:10px;border:1px solid var(--border);margin-bottom:1.25rem">
+      <div style="font-weight:600;margin-bottom:0.3rem;font-size:0.85rem;color:var(--primary)">🤖 AI Vision Caption</div>
+      <p id="modal-img-caption" style="font-size:0.9rem;line-height:1.5;color:var(--text-main)"></p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1.25rem;font-size:0.85rem">
+      <div style="background:rgba(255,255,255,0.03);padding:0.75rem;border-radius:8px;border:1px solid var(--border)">
+        <span class="text-muted">Subject / Category:</span><br/>
+        <strong id="modal-img-subject-cat" style="color:var(--text-main)"></strong>
+      </div>
+      <div style="background:rgba(255,255,255,0.03);padding:0.75rem;border-radius:8px;border:1px solid var(--border)">
+        <span class="text-muted">Confidence Score:</span><br/>
+        <strong id="modal-img-confidence" style="color:var(--text-main)"></strong>
+      </div>
+      <div style="background:rgba(255,255,255,0.03);padding:0.75rem;border-radius:8px;border:1px solid var(--border)">
+        <span class="text-muted">Dimensions & Format:</span><br/>
+        <strong id="modal-img-dimensions" style="color:var(--text-main)"></strong>
+      </div>
+      <div style="background:rgba(255,255,255,0.03);padding:0.75rem;border-radius:8px;border:1px solid var(--border)">
+        <span class="text-muted">File Size:</span><br/>
+        <strong id="modal-img-size" style="color:var(--text-main)"></strong>
+      </div>
+    </div>
+
+    <div style="margin-bottom:1.5rem">
+      <div style="font-weight:600;margin-bottom:0.5rem;font-size:0.8rem;text-transform:uppercase;color:var(--text-muted)">Attributes</div>
+      <div id="modal-img-attributes"></div>
+    </div>
+
+    <div style="display:flex;gap:0.75rem">
+      <button class="btn btn-outline" onclick="selectImageForReviewFromModal()">✅ Review This Image</button>
+      <button class="btn" onclick="closeImageModal()">Close Details</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API = '';
+let currentImagesMap = {};
+let currentSelectedModalImg = null;
 
 function showTab(name) {
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab-panel').forEach(p => {
+    p.classList.remove('active');
+    p.classList.add('hidden');
+  });
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('tab-' + name).classList.remove('hidden');
-  document.querySelectorAll('.tab')[['match','upload','library','review','metrics'].indexOf(name)].classList.add('active');
+
+  const panel = document.getElementById('tab-' + name);
+  panel.classList.remove('hidden');
+  panel.classList.add('active');
+
+  const tabIndex = ['match','upload','library','review','metrics'].indexOf(name);
+  if (tabIndex !== -1) {
+    document.querySelectorAll('.tab')[tabIndex].classList.add('active');
+  }
+
   if (name === 'library') loadLibrary();
-  if (name === 'review') loadReviews();
+  if (name === 'review') { loadLibrary(); loadReviews(); }
   if (name === 'metrics') loadMetrics();
   if (name === 'upload') loadCosts();
 }
 
+/* ─── MATCH CONTENT & CANDIDATES GRID ───────────────────────────────────── */
 async function matchPost() {
   const post_id = 'post_' + Date.now();
   const title = document.getElementById('post-title').value;
@@ -238,7 +353,8 @@ async function matchPost() {
 
   const el = document.getElementById('match-result');
   el.classList.remove('hidden');
-  el.textContent = '⏳ Running semantic matching...';
+  el.innerHTML = '<p class="text-muted">⏳ Running semantic embedding & Mismatch Guard matching...</p>';
+
   try {
     const query = new URLSearchParams({ title, text });
     if (target_subject) query.append('target_subject', target_subject);
@@ -246,25 +362,10 @@ async function matchPost() {
     
     const r = await fetch(API + '/posts/' + post_id + '/images?' + query.toString(), {method:'GET'});
     const data = await r.json();
-    const status = data.status;
-    const icon = status === 'MATCHED' ? '✅' : status === 'REJECTED' ? '🚫' : '❓';
-    el.innerHTML = `
-      <div style="color: ${status==='MATCHED'?'var(--success)':status==='REJECTED'?'var(--danger)':'var(--warning)'}; font-weight:600; margin-bottom:0.5rem">
-        ${icon} Status: ${status}
-      </div>
-      ${data.reject_reason ? `<div style="color:var(--warning)">⚠️ Reason: ${data.reject_reason}</div>` : ''}
-      ${data.matched_image ? `
-        <div style="margin-top:0.5rem">
-          <strong>Best Match:</strong><br/>
-          📁 ${data.matched_image.filename}<br/>
-          🏷️ Subject: ${data.matched_image.subject} | ${data.matched_image.category}<br/>
-          💬 ${data.matched_image.caption}<br/>
-          📈 Similarity: ${(data.matched_image.similarity_score * 100).toFixed(1)}% | Confidence: ${(data.matched_image.confidence_score * 100).toFixed(0)}%
-        </div>` : ''}
-      <details style="margin-top:0.5rem"><summary style="cursor:pointer;color:var(--text-muted)">All candidates (${data.all_candidates?.length || 0})</summary>
-        <pre style="font-size:0.75rem;overflow:auto;max-height:200px">${JSON.stringify(data.all_candidates, null, 2)}</pre>
-      </details>`;
-  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+    renderMatchResult(el, data, post_id);
+  } catch(e) { 
+    el.innerHTML = '<p style="color:var(--danger)">❌ Error running match: ' + e.message + '</p>'; 
+  }
 }
 
 const SCENARIOS = {
@@ -277,162 +378,562 @@ const SCENARIOS = {
 async function testScenario(name) {
   const el = document.getElementById('scenario-result');
   el.classList.remove('hidden');
-  el.textContent = '⏳ Testing scenario: ' + name + '...';
+  el.innerHTML = '<p class="text-muted">⏳ Testing scenario: ' + name + '...</p>';
   const s = SCENARIOS[name];
+  const post_id = 'test_' + name;
   try {
     const query = new URLSearchParams({ title: s.title, text: s.text });
     if (s.target_subject) query.append('target_subject', s.target_subject);
     if (s.target_category) query.append('target_category', s.target_category);
     
-    const r = await fetch(API + '/posts/test_' + name + '/images?' + query.toString(), {method:'GET'});
+    const r = await fetch(API + '/posts/' + post_id + '/images?' + query.toString(), {method:'GET'});
     const data = await r.json();
-    const status = data.status;
-    const icon = status === 'MATCHED' ? '✅' : status === 'REJECTED' ? '🚫' : '❓';
-    el.innerHTML = `<strong>Scenario: ${name}</strong><br/>
-      <span style="color:${status==='MATCHED'?'var(--success)':status==='REJECTED'?'var(--danger)':'var(--warning)'}">${icon} ${status}</span>
-      ${data.reject_reason ? `<br/>⚠️ ${data.reject_reason}` : ''}
-      ${data.matched_image ? `<br/>📁 → ${data.matched_image.filename} (sim: ${(data.matched_image.similarity_score*100).toFixed(1)}%)` : ''}`;
-  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+    renderMatchResult(el, data, post_id, name);
+  } catch(e) { 
+    el.innerHTML = '<p style="color:var(--danger)">❌ Error: ' + e.message + '</p>'; 
+  }
 }
 
-let selectedFile = null;
-function handleFileSelect(e) {
-  selectedFile = e.target.files[0];
-  showPreview(selectedFile);
+function renderMatchResult(containerEl, data, post_id, scenarioName = null) {
+  const status = data.status;
+  const icon = status === 'MATCHED' ? '✅' : status === 'REJECTED' ? '🚫' : '❓';
+  const matchedCandidates = data.matched_candidates || (data.matched_image ? [data.matched_image] : []);
+  const allCandidates = data.all_candidates || [];
+
+  let html = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem">
+      <div>
+        ${scenarioName ? `<strong style="font-size:1rem">Scenario: ${scenarioName}</strong><br/>` : ''}
+        <span style="font-size:1.1rem;font-weight:700;color:${status==='MATCHED'?'var(--success)':status==='REJECTED'?'var(--danger)':'var(--warning)'}">
+          ${icon} Match Engine Status: ${status}
+        </span>
+      </div>
+      <span class="badge ${status==='MATCHED'?'badge-success':status==='REJECTED'?'badge-danger':'badge-warning'}">
+        Top Sim: ${(data.top_similarity * 100).toFixed(1)}%
+      </span>
+    </div>`;
+
+  if (data.reject_reason) {
+    html += `<div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);padding:0.75rem 1rem;border-radius:8px;color:var(--warning);margin-bottom:1rem;font-size:0.85rem">
+      ⚠️ <strong>Notice:</strong> ${data.reject_reason}
+    </div>`;
+  }
+
+  if (matchedCandidates.length > 0) {
+    html += `<div style="margin-bottom:0.5rem">
+      <strong style="font-size:0.9rem">🎯 Matched Candidate Images (${matchedCandidates.length}):</strong>
+      <span class="text-muted" style="font-size:0.8rem"> Click quick review buttons to approve or reject</span>
+    </div>
+    <div class="candidate-grid">`;
+
+    matchedCandidates.forEach((cand, idx) => {
+      const isTop = idx === 0;
+      const simPercent = (cand.similarity_score * 100).toFixed(1);
+      const confPercent = (cand.confidence_score * 100).toFixed(0);
+      const imgUrl = cand.image_url || ('/api/images/' + cand.image_id + '/file');
+
+      html += `
+        <div class="candidate-card ${isTop ? 'top-match' : ''}">
+          <div style="position:relative">
+            <img src="${imgUrl}" class="candidate-preview" alt="${cand.filename}" onclick="openImageModalById('${cand.image_id}')" style="cursor:pointer" title="Click for details"/>
+            <span class="badge ${isTop?'badge-success':'badge-warning'}" style="position:absolute;top:8px;right:8px">
+              ${isTop ? '🌟 Best Match' : `Option #${idx+1}`}
+            </span>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <strong style="font-size:0.85rem">${cand.filename}</strong>
+              <span style="font-size:0.8rem;color:var(--primary);font-weight:600">${simPercent}% Sim</span>
+            </div>
+            <div class="text-muted" style="font-size:0.75rem;margin-top:0.2rem">
+              🏷️ ${cand.subject} (${cand.category}) · 📊 Conf: ${confPercent}%
+            </div>
+            <div class="text-muted" style="font-size:0.75rem;margin-top:0.4rem;font-style:italic;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
+              "${cand.caption}"
+            </div>
+          </div>
+          <div style="display:flex;gap:0.5rem;margin-top:auto;padding-top:0.5rem;border-top:1px solid var(--border)">
+            <button class="btn btn-outline" style="padding:0.35rem 0.6rem;font-size:0.75rem;color:var(--success);border-color:rgba(16,185,129,0.4)" 
+              onclick="submitInlineReview('${cand.image_id}', '${post_id}', true, this)">
+              ✅ Approve
+            </button>
+            <button class="btn btn-outline" style="padding:0.35rem 0.6rem;font-size:0.75rem;color:var(--danger);border-color:rgba(239,68,68,0.4)" 
+              onclick="submitInlineReview('${cand.image_id}', '${post_id}', false, this)">
+              ❌ Reject
+            </button>
+          </div>
+        </div>`;
+    });
+    html += `</div>`;
+  } else {
+    html += `<p class="text-muted" style="font-size:0.85rem">No candidates met the threshold or passed safety rules.</p>`;
+  }
+
+  if (allCandidates.length > 0) {
+    html += `<details style="margin-top:1rem">
+      <summary style="cursor:pointer;color:var(--text-muted);font-size:0.8rem">🔍 View Full Candidate Diagnostic Log (${allCandidates.length})</summary>
+      <pre style="font-size:0.75rem;overflow:auto;max-height:220px;background:#0d1117;padding:0.75rem;border-radius:8px;margin-top:0.5rem">${JSON.stringify(allCandidates, null, 2)}</pre>
+    </details>`;
+  }
+
+  containerEl.innerHTML = html;
 }
+
+async function submitInlineReview(imageId, postId, approved, btnEl) {
+  let rejectReason = null;
+  if (!approved) {
+    rejectReason = prompt("Please enter rejection reason:", "Visually similar but wrong entity suggested");
+    if (rejectReason === null) return; // User cancelled prompt
+  }
+
+  const body = {
+    image_id: imageId,
+    post_id: postId,
+    approved: approved,
+    reject_reason: rejectReason || null,
+    reviewer: "human_editor_ui"
+  };
+
+  btnEl.disabled = true;
+  btnEl.textContent = '⏳ Submitting...';
+
+  try {
+    const r = await fetch(API + '/images/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    btnEl.textContent = approved ? '✓ Approved' : '✓ Rejected';
+    btnEl.style.background = approved ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)';
+    
+    // Refresh metrics & review list in background
+    loadReviews();
+    loadMetrics();
+  } catch(e) {
+    alert("Error submitting review: " + e.message);
+    btnEl.disabled = false;
+    btnEl.textContent = approved ? '✅ Approve' : '❌ Reject';
+  }
+}
+
+/* ─── UPLOAD HANDLERS ─────────────────────────────────────────────────── */
+let selectedFilesList = [];
+
+function handleFileSelect(e) {
+  selectedFilesList = Array.from(e.target.files);
+  showPreview(selectedFilesList);
+}
+
 function handleDrop(e) {
   e.preventDefault();
-  selectedFile = e.dataTransfer.files[0];
-  showPreview(selectedFile);
-}
-function showPreview(file) {
-  if (!file) return;
-  document.getElementById('upload-preview').classList.remove('hidden');
-  document.getElementById('preview-name').textContent = file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)';
-  const reader = new FileReader();
-  reader.onload = e => document.getElementById('preview-img').src = e.target.result;
-  reader.readAsDataURL(file);
-}
-async function submitUpload() {
-  if (!selectedFile) return;
-  const el = document.getElementById('upload-result');
-  el.classList.remove('hidden');
-  el.textContent = '⏳ Queuing Vision AI analysis...';
-  const fd = new FormData();
-  fd.append('file', selectedFile);
-  try {
-    const r = await fetch(API + '/api/ingest/upload', {method:'POST', body: fd});
-    const data = await r.json();
-    if (!r.ok) { el.textContent = '❌ ' + (data.detail || 'Upload failed'); return; }
-    el.innerHTML = `✅ <strong>${data.filename}</strong> queued!<br/>
-      ⏳ Status: ${data.status}<br/>
-      🆔 Job ID: ${data.job_id}<br/>
-      <span class="text-muted" style="font-size:0.8rem">Image is being processed in the background by Redis Worker. Check Library in a few seconds.</span>`;
-    setTimeout(loadImageCount, 2000);
-  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+  selectedFilesList = Array.from(e.dataTransfer.files);
+  showPreview(selectedFilesList);
 }
 
+function showPreview(files) {
+  if (!files || !files.length) return;
+  const container = document.getElementById('preview-list-container');
+  const previewDiv = document.getElementById('upload-preview');
+  const btn = document.getElementById('btn-submit-upload');
+  const nameEl = document.getElementById('preview-name');
+  
+  previewDiv.classList.remove('hidden');
+  container.innerHTML = '';
+
+  if (files.length === 1) {
+    const file = files[0];
+    nameEl.textContent = `${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+    btn.textContent = '🚀 Run Vision AI Analysis';
+    
+    const reader = new FileReader();
+    reader.onload = e => {
+      container.innerHTML = `<img src="${e.target.result}" style="max-height:180px;border-radius:8px;border:1px solid var(--border)"/>`;
+    };
+    reader.readAsDataURL(file);
+  } else {
+    const totalKb = (files.reduce((acc,f)=>acc+f.size,0)/1024).toFixed(1);
+    nameEl.textContent = `Batch Selected: ${files.length} image files (${totalKb} KB total)`;
+    btn.textContent = `🚀 Run Vision AI Batch Analysis (${files.length} files)`;
+
+    files.slice(0, 6).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const thumb = document.createElement('img');
+        thumb.src = e.target.result;
+        thumb.style.cssText = 'width:64px;height:64px;border-radius:8px;object-fit:cover;border:1px solid var(--border)';
+        thumb.title = file.name;
+        container.appendChild(thumb);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (files.length > 6) {
+      const more = document.createElement('div');
+      more.style.cssText = 'width:64px;height:64px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:0.8rem;color:var(--text-muted)';
+      more.textContent = `+${files.length - 6} more`;
+      container.appendChild(more);
+    }
+  }
+}
+
+async function submitUpload() {
+  if (!selectedFilesList || !selectedFilesList.length) return;
+  const el = document.getElementById('upload-result');
+  el.classList.remove('hidden');
+
+  if (selectedFilesList.length === 1) {
+    const file = selectedFilesList[0];
+    el.innerHTML = '<p class="text-muted">⏳ Checking deduplication & queuing Vision AI analysis...</p>';
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const r = await fetch(API + '/api/ingest/upload', {method:'POST', body: fd});
+      const data = await r.json();
+      if (!r.ok) { el.innerHTML = '<p style="color:var(--danger)">❌ ' + (data.detail || 'Upload failed') + '</p>'; return; }
+      
+      const resImg = data.image || {};
+      if (resImg.is_duplicate) {
+        el.innerHTML = `<div style="color:var(--warning)">⚠️ <strong>Deduplicated:</strong> ${resImg.message || 'Image already exists in DB.'}</div>
+          <span class="text-muted" style="font-size:0.8rem">Single copy preserved in database. Duplicate upload ignored.</span>`;
+      } else {
+        el.innerHTML = `✅ <strong>${resImg.filename || file.name}</strong> queued!<br/>
+          ⏳ Job Status: ${resImg.status}<br/>
+          <span class="text-muted" style="font-size:0.8rem">Vision AI analysis running. Check Library to view updated list.</span>`;
+      }
+      setTimeout(loadLibrary, 2000);
+      setTimeout(loadImageCount, 2000);
+    } catch(e) { el.innerHTML = '<p style="color:var(--danger)">❌ Error: ' + e.message + '</p>'; }
+  } else {
+    el.innerHTML = `<p class="text-muted">⏳ Queuing batch upload of ${selectedFilesList.length} images...</p>`;
+    const fd = new FormData();
+    selectedFilesList.forEach(file => {
+      fd.append('files', file);
+    });
+
+    try {
+      const r = await fetch(API + '/api/ingest/upload-batch', {method:'POST', body: fd});
+      const data = await r.json();
+      if (!r.ok) { el.innerHTML = '<p style="color:var(--danger)">❌ ' + (data.detail || 'Batch upload failed') + '</p>'; return; }
+
+      let summaryHtml = `
+        <div style="margin-bottom:0.5rem">
+          <strong>✅ Batch Upload Completed:</strong> ${data.queued_count} queued, ${data.duplicate_count} deduplicated (Total: ${data.total_files})
+        </div>
+        <div style="max-height:160px;overflow-y:auto;font-size:0.8rem;background:rgba(0,0,0,0.3);padding:0.5rem;border-radius:6px;border:1px solid var(--border)">`;
+
+      (data.results || []).forEach(res => {
+        if (res.is_duplicate) {
+          summaryHtml += `<div style="color:var(--warning)">⚠️ ${res.filename}: Deduplicated (Already exists in DB)</div>`;
+        } else if (res.status === 'queued') {
+          summaryHtml += `<div style="color:var(--success)">✅ ${res.filename}: Queued for Vision AI</div>`;
+        } else {
+          summaryHtml += `<div style="color:var(--danger)">❌ ${res.filename}: ${res.message || 'Error'}</div>`;
+        }
+      });
+      summaryHtml += `</div>`;
+      el.innerHTML = summaryHtml;
+
+      setTimeout(loadLibrary, 2500);
+      setTimeout(loadImageCount, 2500);
+    } catch(e) { el.innerHTML = '<p style="color:var(--danger)">❌ Batch Upload Error: ' + e.message + '</p>'; }
+  }
+}
+
+/* ─── IMAGE LIBRARY TABLE & MODAL ────────────────────────────────────── */
 async function loadLibrary() {
-  const el = document.getElementById('image-library-grid');
-  el.innerHTML = '<p class="text-muted">Loading...</p>';
+  const tbody = document.getElementById('library-table-body');
+  tbody.innerHTML = '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:1.5rem">Loading images...</td></tr>';
   try {
     const r = await fetch(API + '/api/images');
     const data = await r.json();
-    el.innerHTML = data.images.map(img => `
-      <div class="img-card ${img.is_flagged ? 'flagged' : ''}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem">
-          <h5>${img.filename}</h5>
-          ${img.is_flagged ? '<span class="badge badge-danger">⚠️ Flagged</span>' : '<span class="badge badge-success">✅</span>'}
-        </div>
-        <div style="font-size:0.75rem;color:var(--text-muted)">
-          🏷️ ${img.subject} / ${img.category}<br/>
-          📊 Confidence: ${(img.confidence_score*100).toFixed(0)}%<br/>
-          📏 ${img.width}×${img.height}px<br/>
-          💬 <em>${(img.caption||'').substring(0,80)}${img.caption?.length>80?'...':''}</em>
-        </div>
-        <div style="margin-top:0.5rem;display:flex;gap:0.25rem;flex-wrap:wrap">
-          ${(img.attributes||[]).map(a => `<span style="background:#1E293B;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.7rem">${a}</span>`).join('')}
-        </div>
-      </div>`).join('');
-  } catch(e) { el.innerHTML = '<p style="color:var(--danger)">Error: ' + e.message + '</p>'; }
+    if (!r.ok) { tbody.innerHTML = `<tr><td colspan="6" style="color:var(--danger)">Error: ${data.detail || r.status}</td></tr>`; return; }
+    
+    const images = data.images || [];
+    currentImagesMap = {};
+    images.forEach(img => { currentImagesMap[img.image_id] = img; });
+
+    populateReviewDropdowns(images);
+
+    if (!images.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:2rem">No images ingested yet. Upload an image above!</td></tr>';
+      return;
+    }
+
+    renderLibraryRows(images);
+    document.getElementById('img-count').textContent = images.length + ' images in library';
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="6" style="color:var(--danger)">Error loading library: ${e.message}</td></tr>`;
+  }
+}
+
+function renderLibraryRows(images) {
+  const tbody = document.getElementById('library-table-body');
+  tbody.innerHTML = images.map(img => {
+    const imgUrl = img.image_url || ('/api/images/' + img.image_id + '/file');
+    const isFlagged = Boolean(img.is_flagged);
+    const confPercent = (img.confidence_score * 100).toFixed(0);
+
+    return `
+      <tr onclick="openImageModal('${img.image_id}')">
+        <td style="width:60px">
+          <img src="${imgUrl}" class="table-thumb" alt="${img.filename}" />
+        </td>
+        <td>
+          <strong style="font-size:0.85rem;color:var(--text-main)">${img.filename}</strong><br/>
+          <span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted)">${img.image_id}</span>
+        </td>
+        <td>
+          <span style="font-weight:600;font-size:0.85rem">${img.subject}</span><br/>
+          <span class="text-muted" style="font-size:0.75rem">${img.category}</span>
+        </td>
+        <td>
+          <span style="font-weight:600;font-size:0.85rem;color:${img.confidence_score>=0.7?'var(--success)':'var(--danger)'}">${confPercent}%</span>
+        </td>
+        <td>
+          ${isFlagged ? '<span class="badge badge-danger">⚠️ Flagged</span>' : '<span class="badge badge-success">✅ Valid</span>'}
+        </td>
+        <td>
+          <button class="btn btn-outline" style="padding:0.3rem 0.75rem;font-size:0.75rem" onclick="event.stopPropagation();openImageModal('${img.image_id}')">
+            🔍 Details
+          </button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function filterLibraryTable() {
+  const q = document.getElementById('library-search').value.toLowerCase();
+  const allImages = Object.values(currentImagesMap);
+  const filtered = allImages.filter(img => 
+    img.filename.toLowerCase().includes(q) ||
+    img.subject.toLowerCase().includes(q) ||
+    img.category.toLowerCase().includes(q) ||
+    img.image_id.toLowerCase().includes(q) ||
+    (img.caption && img.caption.toLowerCase().includes(q))
+  );
+  renderLibraryRows(filtered);
+}
+
+function openImageModal(imageId) {
+  const img = currentImagesMap[imageId];
+  if (!img) return;
+  currentSelectedModalImg = img;
+
+  const modal = document.getElementById('image-detail-modal');
+  document.getElementById('modal-img-preview').src = img.image_url || ('/api/images/' + img.image_id + '/file');
+  document.getElementById('modal-img-title').textContent = img.filename;
+  document.getElementById('modal-img-id').textContent = img.image_id;
+  
+  const statusEl = document.getElementById('modal-img-status');
+  statusEl.innerHTML = img.is_flagged 
+    ? '<span class="badge badge-danger">⚠️ Flagged (&lt;0.70)</span>'
+    : '<span class="badge badge-success">✅ Valid Image</span>';
+
+  document.getElementById('modal-img-caption').textContent = img.caption || 'No caption available.';
+  document.getElementById('modal-img-subject-cat').textContent = `${img.subject} / ${img.category}`;
+  document.getElementById('modal-img-confidence').textContent = `${(img.confidence_score*100).toFixed(1)}%`;
+  document.getElementById('modal-img-dimensions').textContent = img.width && img.height ? `${img.width}×${img.height} px (${img.format})` : `Format: ${img.format}`;
+  document.getElementById('modal-img-size').textContent = img.file_size_bytes ? `${(img.file_size_bytes/1024).toFixed(1)} KB` : 'N/A';
+
+  const attrsContainer = document.getElementById('modal-img-attributes');
+  const attrs = img.attributes || [];
+  attrsContainer.innerHTML = attrs.length > 0
+    ? attrs.map(a => `<span class="tag-pill">${a}</span>`).join('')
+    : '<span class="text-muted" style="font-size:0.8rem">No attribute tags</span>';
+
+  modal.classList.remove('hidden');
+}
+
+function openImageModalById(imageId) {
+  openImageModal(imageId);
+}
+
+function closeImageModal(e) {
+  if (e && e.target !== e.currentTarget && !e.target.classList.contains('modal-close')) return;
+  document.getElementById('image-detail-modal').classList.add('hidden');
+}
+
+function selectImageForReviewFromModal() {
+  if (!currentSelectedModalImg) return;
+  closeImageModal();
+  showTab('review');
+  const select = document.getElementById('review-image-id');
+  select.value = currentSelectedModalImg.image_id;
+  onReviewImageSelectChange();
+}
+
+/* ─── HUMAN REVIEW API & DROPDOWNS ───────────────────────────────────── */
+function populateReviewDropdowns(images) {
+  const select = document.getElementById('review-image-id');
+  if (!images || !images.length) {
+    select.innerHTML = '<option value="">No images available</option>';
+    return;
+  }
+
+  const currentVal = select.value;
+  select.innerHTML = images.map(img => 
+    `<option value="${img.image_id}">${img.filename} — ${img.subject} (${img.category}) [${img.image_id}]</option>`
+  ).join('');
+
+  if (currentVal && currentImagesMap[currentVal]) {
+    select.value = currentVal;
+  }
+  onReviewImageSelectChange();
+}
+
+function onReviewImageSelectChange() {
+  const imageId = document.getElementById('review-image-id').value;
+  const img = currentImagesMap[imageId];
+
+  const imgEl = document.getElementById('review-preview-img');
+  const filenameEl = document.getElementById('review-preview-filename');
+  const subjectEl = document.getElementById('review-preview-subject');
+  const captionEl = document.getElementById('review-preview-caption');
+
+  if (img) {
+    imgEl.src = img.image_url || ('/api/images/' + img.image_id + '/file');
+    filenameEl.textContent = `${img.filename} (${img.image_id})`;
+    subjectEl.textContent = `Subject: ${img.subject} · Category: ${img.category} · Conf: ${(img.confidence_score*100).toFixed(0)}%`;
+    captionEl.textContent = `"${(img.caption || '').substring(0, 90)}..."`;
+  } else {
+    imgEl.src = '';
+    filenameEl.textContent = 'Select an image above';
+    subjectEl.textContent = 'No image selected';
+    captionEl.textContent = '';
+  }
+}
+
+function toggleRejectReasonField() {
+  const isApproved = document.getElementById('review-decision').value === 'true';
+  document.getElementById('reason-group').style.display = isApproved ? 'none' : 'block';
 }
 
 async function submitReview() {
+  const image_id = document.getElementById('review-image-id').value;
+  let post_id = document.getElementById('review-post-id').value;
+  
+  if (post_id === 'custom') {
+    post_id = prompt("Enter custom Post ID:", "post_custom_001") || "post_custom_001";
+  }
+
+  const approved = document.getElementById('review-decision').value === 'true';
+  const reject_reason = document.getElementById('review-reason').value || null;
+
+  if (!image_id) {
+    alert("Please select an Image ID from the dropdown.");
+    return;
+  }
+
   const body = {
-    image_id: document.getElementById('review-image-id').value,
-    post_id: document.getElementById('review-post-id').value,
-    approved: document.getElementById('review-decision').value === 'true',
-    reject_reason: document.getElementById('review-reason').value || null,
+    image_id,
+    post_id,
+    approved,
+    reject_reason: approved ? null : (reject_reason || "Rejected by human reviewer"),
+    reviewer: "human_editor_web"
   };
+
   const el = document.getElementById('review-result');
   el.classList.remove('hidden');
+  el.innerHTML = '<p class="text-muted">⏳ Submitting review to API...</p>';
+
   try {
-    const r = await fetch(API + '/images/review', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const r = await fetch(API + '/images/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
     const data = await r.json();
-    el.innerHTML = `✅ Review submitted! ID: ${data.review_id}<br/>Decision: ${data.approved ? '✅ Approved' : '❌ Rejected'}`;
+    el.innerHTML = `✅ <strong>Review recorded successfully!</strong><br/>
+      ID: <code>${data.review_id}</code> · Image: <code>${data.image_id}</code><br/>
+      Decision: <strong>${data.approved ? '✅ Approved' : '❌ Rejected'}</strong>`;
+    
     loadReviews();
-  } catch(e) { el.textContent = '❌ Error: ' + e.message; }
+    loadMetrics();
+  } catch(e) { 
+    el.innerHTML = '<p style="color:var(--danger)">❌ Error: ' + e.message + '</p>'; 
+  }
 }
 
 async function loadReviews() {
   const el = document.getElementById('reviews-list');
   try {
-    const r = await fetch(API + '/api/reviews');
+    const r = await fetch(API + '/images/reviews');
     const data = await r.json();
-    if (!data.reviews.length) { el.innerHTML = '<p class="text-muted">No reviews yet.</p>'; return; }
-    el.innerHTML = data.reviews.map(rv => `
-      <div class="review-item">
-        <div style="display:flex;justify-content:space-between">
-          <span style="font-size:0.85rem;font-weight:600">${rv.image_id}</span>
+    const reviews = data.reviews || [];
+    if (!reviews.length) { el.innerHTML = '<p class="text-muted" style="font-size:0.85rem">No human reviews logged yet.</p>'; return; }
+    
+    el.innerHTML = reviews.map(rv => `
+      <div style="background:rgba(0,0,0,0.2);border:1px solid var(--border);border-radius:8px;padding:0.75rem;margin-bottom:0.6rem">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:0.85rem;font-weight:600;font-family:var(--font-mono)">${rv.image_id}</span>
           <span class="badge ${rv.approved ? 'badge-success' : 'badge-danger'}">${rv.approved ? '✅ Approved' : '❌ Rejected'}</span>
         </div>
-        <div style="font-size:0.75rem;color:var(--text-muted)">Post: ${rv.post_id} · By: ${rv.reviewer}
-        ${rv.reject_reason ? '<br/>Reason: ' + rv.reject_reason : ''}</div>
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem">
+          Post: <code>${rv.post_id}</code> · Reviewer: ${rv.reviewer}
+          ${rv.reject_reason ? `<br/><span style="color:var(--warning)">Reason: ${rv.reject_reason}</span>` : ''}
+        </div>
       </div>`).join('');
-  } catch(e) { el.innerHTML = '<p style="color:var(--danger)">Error</p>'; }
+  } catch(e) { el.innerHTML = '<p style="color:var(--danger);font-size:0.85rem">Error loading review list</p>'; }
 }
 
+/* ─── METRICS & COSTS ─────────────────────────────────────────────────── */
 async function loadMetrics() {
+  const precEl = document.getElementById('precision-stats');
+  const costEl = document.getElementById('cost-stats');
+  precEl.innerHTML = '<p class="text-muted">Loading...</p>';
+  costEl.innerHTML = '<p class="text-muted">Loading...</p>';
   try {
-    const [precR, costR] = await Promise.all([fetch(API+'/api/metrics/precision'), fetch(API+'/api/costs')]);
+    const [precR, costR] = await Promise.all([fetch(API+'/metrics/precision'), fetch(API+'/api/costs')]);
     const prec = await precR.json();
     const cost = await costR.json();
     
-    document.getElementById('precision-stats').innerHTML = `
-      <div class="metric-big">${prec.precision_pct}</div>
-      <p style="color:var(--text-muted);margin:0.5rem 0">Top-1 Precision (Approved / Total Reviews)</p>
-      <div class="metric-row"><span>Total Reviews</span><span>${prec.total_reviews}</span></div>
-      <div class="metric-row"><span>Approved</span><span style="color:var(--success)">${prec.approved}</span></div>
-      <div class="metric-row"><span>Rejected</span><span style="color:var(--danger)">${prec.rejected}</span></div>`;
+    precEl.innerHTML = `
+      <div class="metric-big">${prec.precision_percent ?? '—'}</div>
+      <p style="color:var(--text-muted);margin:0.5rem 0">Top-1 Precision Score</p>
+      <div class="metric-row"><span>Total Reviews</span><span>${prec.total_reviews ?? 0}</span></div>`;
     
-    document.getElementById('cost-stats').innerHTML = `
-      <div class="metric-big">${cost.total_cost_usd}</div>
+    const byStatusRows = Object.entries(cost.by_status || {}).map(([s, v]) =>
+      `<div class="metric-row"><span>${s}</span><span>${v.count} jobs / $${(v.cost_micro_usd/1000000).toFixed(6)}</span></div>`
+    ).join('');
+    costEl.innerHTML = `
+      <div class="metric-big">${cost.total_cost_usd ?? '$0.000000'}</div>
       <p style="color:var(--text-muted);margin:0.5rem 0">Total AI API Cost (simulated)</p>
-      ${Object.entries(cost.by_status||{}).map(([s, v]) => `
-        <div class="metric-row"><span>${s}</span><span>${v.count} jobs / $${(v.cost_micro_usd/1000000).toFixed(6)}</span></div>`).join('')}`;
-  } catch(e) { console.error(e); }
+      ${byStatusRows || '<p class="text-muted" style="margin-top:0.5rem;font-size:0.85rem">No AI jobs recorded yet.</p>'}`;
+  } catch(e) {
+    precEl.innerHTML = '<p style="color:var(--danger)">❌ Error loading precision: ' + e.message + '</p>';
+    costEl.innerHTML = '<p style="color:var(--danger)">❌ Error loading costs: ' + e.message + '</p>';
+  }
 }
 
 async function loadCosts() {
   try {
     const r = await fetch(API + '/api/costs');
     const data = await r.json();
+    const byStatus = Object.entries(data.by_status || {}).map(([s,v]) => `${s}: ${v.count}`).join(' · ');
     document.getElementById('cost-info').innerHTML = `
       <div style="background:#0D1421;border:1px solid var(--border);border-radius:8px;padding:0.75rem;font-size:0.8rem">
-        💰 Total AI Cost: <strong>${data.total_cost_usd}</strong> · 
-        ${Object.entries(data.by_status||{}).map(([s,v]) => `${s}: ${v.count}`).join(' · ')}
+        💰 Total AI Cost: <strong>${data.total_cost_usd}</strong>
+        ${byStatus ? ' · ' + byStatus : ' · No jobs yet'}
       </div>`;
-  } catch(e) {}
+  } catch(e) {
+    document.getElementById('cost-info').innerHTML = '<p style="color:var(--danger);font-size:0.8rem">❌ Could not load cost data.</p>';
+  }
 }
 
 async function loadImageCount() {
   try {
     const r = await fetch(API + '/api/images');
     const data = await r.json();
-    document.getElementById('img-count').textContent = data.images.length + ' images in library';
+    const images = data.images || [];
+    currentImagesMap = {};
+    images.forEach(img => { currentImagesMap[img.image_id] = img; });
+    document.getElementById('img-count').textContent = images.length + ' images in library';
+    populateReviewDropdowns(images);
   } catch(e) {}
 }
 
+// Initial load
 loadImageCount();
 </script>
 </body>

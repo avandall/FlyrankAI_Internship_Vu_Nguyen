@@ -1,6 +1,7 @@
 import asyncpg
 import logging
 from typing import Optional
+from capstone.Multi_platform.core.config import DATABASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -10,8 +11,7 @@ pool: Optional[asyncpg.Pool] = None
 async def get_db_pool() -> asyncpg.Pool:
     global pool
     if pool is None:
-        db_url = "postgresql://postgres:postgres@localhost:5433/postgres"
-        pool = await asyncpg.create_pool(db_url)
+        pool = await asyncpg.create_pool(DATABASE_URL)
     return pool
 
 async def close_db_pool():

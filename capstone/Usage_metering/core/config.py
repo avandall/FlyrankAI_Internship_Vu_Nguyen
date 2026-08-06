@@ -1,8 +1,9 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/billing")
 # 1 micro-cent = $0.00000001. Prices are per-token in micro-cents.
 # Based on Groq / LLM pricing (representative AI model)
 TOKEN_PRICE_CONFIG = {

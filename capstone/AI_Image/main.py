@@ -28,10 +28,6 @@ async def lifespan(app: FastAPI):
     # Initialize DB pool on startup
     await init_db()
     
-    # Seed demo images on startup
-    for seed in SEED_IMAGES:
-        await ingestion_svc.ingest_metadata(seed)
-        
     # Start background worker for image processing
     worker_task = asyncio.create_task(worker_loop())
     

@@ -11,8 +11,7 @@ pool: Optional[asyncpg.Pool] = None
 async def get_db_pool() -> asyncpg.Pool:
     global pool
     if pool is None:
-        db_url = "postgresql://postgres:postgres@localhost:5433/postgres"
-        pool = await asyncpg.create_pool(db_url)
+        pool = await asyncpg.create_pool(DATABASE_URL)
     return pool
 
 async def close_db_pool():
@@ -40,8 +39,14 @@ async def init_db():
             confidence_score REAL NOT NULL,
             is_flagged     INTEGER DEFAULT 0,
             embedding      JSONB,
+            file_hash      TEXT,
+            file_bytes_b64 TEXT,
             created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        ALTER TABLE images ADD COLUMN IF NOT EXISTS file_hash TEXT;
+        ALTER TABLE images ADD COLUMN IF NOT EXISTS file_bytes_b64 TEXT;
+        ALTER TABLE images ADD COLUMN IF NOT EXISTS perceptual_hash TEXT;
 
         CREATE TABLE IF NOT EXISTS ingest_jobs (
             job_id         TEXT PRIMARY KEY,
@@ -50,9 +55,14 @@ async def init_db():
             retries        INTEGER DEFAULT 0,
             ai_cost_micro_usd INTEGER DEFAULT 0,
             error_msg      TEXT,
+            file_hash      TEXT,
+            perceptual_hash TEXT,
             created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        ALTER TABLE ingest_jobs ADD COLUMN IF NOT EXISTS file_hash TEXT;
+        ALTER TABLE ingest_jobs ADD COLUMN IF NOT EXISTS perceptual_hash TEXT;
 
         CREATE TABLE IF NOT EXISTS reviews (
             review_id      TEXT PRIMARY KEY,

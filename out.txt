@@ -1,0 +1,13 @@
+/home/avandall1999/Projects/FlyrankAI_Internship_Vu_Nguyen/node_modules/html-encoding-sniffer/lib/html-encoding-sniffer.js:2
+const { getBOMEncoding, labelToName } = require("@exodus/bytes/encoding-lite.js");
+                                        ^
+
+Error [ERR_REQUIRE_ESM]: require() of ES Module /home/avandall1999/Projects/FlyrankAI_Internship_Vu_Nguyen/node_modules/@exodus/bytes/encoding-lite.js from /home/avandall1999/Projects/FlyrankAI_Internship_Vu_Nguyen/node_modules/html-encoding-sniffer/lib/html-encoding-sniffer.js not supported.
+Instead change the require of encoding-lite.js in /home/avandall1999/Projects/FlyrankAI_Internship_Vu_Nguyen/node_modules/html-encoding-sniffer/lib/html-encoding-sniffer.js to a dynamic import() which is available in all CommonJS modules.
+    at Object.<anonymous> (/home/avandall1999/Projects/FlyrankAI_Internship_Vu_Nguyen/node_modules/html-encoding-sniffer/lib/html-encoding-sniffer.js:2:41)
+    at Object.<anonymous> (/home/avandall1999/Projects/FlyrankAI_Internship_Vu_Nguyen/node_modules/jsdom/lib/api.js:7:27)
+    at Object.<anonymous> (/home/avandall1999/Projects/FlyrankAI_Internship_Vu_Nguyen/test_ui.js:1:19) {
+  code: 'ERR_REQUIRE_ESM'
+}
+
+Node.js v18.19.1

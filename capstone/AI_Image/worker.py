@@ -29,6 +29,12 @@ async def process_job(job_id: str, image_id: str, filename: str, file_bytes_b64:
         )
 
     try:
+        # Step 0: Save image file to static/uploads for preview serving
+        uploads_dir = Path(os.path.dirname(__file__)) / "static" / "uploads"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        (uploads_dir / filename).write_bytes(file_bytes)
+        (uploads_dir / f"{image_id}_{filename}").write_bytes(file_bytes)
+
         # Step 1: Vision AI (with validation)
         vision_result = await call_vision_ai(filename, file_bytes)
 
@@ -49,6 +55,11 @@ async def process_job(job_id: str, image_id: str, filename: str, file_bytes_b64:
         except Exception:
             pass
 
+        import base64
+        from capstone.AI_Image.utils import compute_image_hashes
+        file_hash, perceptual_hash = compute_image_hashes(file_bytes)
+        file_bytes_b64 = base64.b64encode(file_bytes).decode('utf-8')
+
         # Step 4: Persist to Postgres
         async with pool.acquire() as conn:
             async with conn.transaction():
@@ -56,8 +67,8 @@ async def process_job(job_id: str, image_id: str, filename: str, file_bytes_b64:
                     INSERT INTO images (
                         image_id, filename, file_size_bytes, format, width, height,
                         subject, category, attributes, caption, confidence_score,
-                        is_flagged, embedding
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                        is_flagged, embedding, file_hash, file_bytes_b64, perceptual_hash
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
                     ON CONFLICT (image_id) DO UPDATE SET
                         subject=EXCLUDED.subject,
                         category=EXCLUDED.category,
@@ -65,7 +76,10 @@ async def process_job(job_id: str, image_id: str, filename: str, file_bytes_b64:
                         caption=EXCLUDED.caption,
                         confidence_score=EXCLUDED.confidence_score,
                         is_flagged=EXCLUDED.is_flagged,
-                        embedding=EXCLUDED.embedding
+                        embedding=EXCLUDED.embedding,
+                        file_hash=EXCLUDED.file_hash,
+                        file_bytes_b64=EXCLUDED.file_bytes_b64,
+                        perceptual_hash=EXCLUDED.perceptual_hash
                 """, 
                     image_id, filename, len(file_bytes),
                     Path(filename).suffix.lstrip(".").lower() or "jpg",
@@ -75,7 +89,10 @@ async def process_job(job_id: str, image_id: str, filename: str, file_bytes_b64:
                     vision_result["caption"],
                     vision_result["confidence_score"],
                     1 if is_flagged else 0,
-                    json.dumps(embedding)
+                    json.dumps(embedding),
+                    file_hash,
+                    file_bytes_b64,
+                    perceptual_hash
                 )
 
                 await conn.execute("""
