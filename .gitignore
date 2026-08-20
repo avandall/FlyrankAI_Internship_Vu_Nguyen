@@ -1,15 +1,26 @@
 # Python-generated files
 __pycache__/
-*.py[oc]
+*.py[ocd]
+*$py.class
 build/
 dist/
 wheels/
 *.egg-info
+.pytest_cache/
 
 # Virtual environments
 .venv
+env/
+venv/
 
 # Environment variables & secrets
 .env
 *.env
 
+# IDE settings
+.vscode/
+.idea/
+
+# Scraper cache directory
+scraper/cache/*
+!scraper/cache/.gitkeep

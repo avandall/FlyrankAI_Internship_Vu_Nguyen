@@ -1,0 +1,14 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "extraPaths": [
+    ".",
+    "scraper",
+    "scraper/src",
+    "capstone/AI_Image",
+    "capstone/Usage_metering",
+    "capstone/Multi_platform",
+    "app",
+    "deliverable"
+  ]
+}
