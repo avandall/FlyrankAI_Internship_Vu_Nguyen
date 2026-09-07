@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+body {
+  background-color: #090d16;
+  color: #f8fafc;
+  min-height: 100vh;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.react-flow__attribution {
+  display: none !important;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(245, 158, 11, 0.9);
+  }
+}
+
+.running-node-glow {
+  animation: pulse-glow 1.5s infinite;
+}
